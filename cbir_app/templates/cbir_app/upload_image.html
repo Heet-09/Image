@@ -1,0 +1,12 @@
+<!-- cbir_app/templates/cbir_app/upload_image.html -->
+<!-- <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="image">
+    <button type="submit">Upload</button>
+</form> -->
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="images" multiple>
+    <button type="submit">Upload</button>
+</form>

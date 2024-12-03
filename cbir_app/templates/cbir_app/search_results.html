@@ -1,0 +1,17 @@
+<!-- cbir_app/templates/cbir_app/search_results.html -->
+<h1>Search Results</h1>
+    
+<!-- Display the query image -->
+<h2>Query Image</h2>
+<img src="{{ query_image_url }}" alt="Query Image" style="max-width: 300px; max-height: 300px;">
+
+<!-- Display the similar images -->
+<h2>Similar Images</h2>
+<div>
+    {% for result in similar_images %}
+        <div style="margin-bottom: 20px;">
+            <img src="{{ result.image.image.url }}" alt="Similar Image" style="max-width: 300px; max-height: 300px;">
+            <p>Similarity Score: {{ result.score }}</p>
+        </div>
+    {% endfor %}
+</div>

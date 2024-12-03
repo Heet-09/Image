@@ -1,0 +1,6 @@
+<!-- cbir_app/templates/cbir_app/search_image.html -->
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <input type="file" name="image">
+    <button type="submit">Search</button>
+</form>
