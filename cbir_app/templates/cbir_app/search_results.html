@@ -1,17 +1,100 @@
 <!-- cbir_app/templates/cbir_app/search_results.html -->
-<h1>Search Results</h1>
-    
-<!-- Display the query image -->
-<h2>Query Image</h2>
-<img src="{{ query_image_url }}" alt="Query Image" style="max-width: 300px; max-height: 300px;">
 
-<!-- Display the similar images -->
-<h2>Similar Images</h2>
-<div>
-    {% for result in similar_images %}
-        <div style="margin-bottom: 20px;">
-            <img src="{{ result.image.image.url }}" alt="Similar Image" style="max-width: 300px; max-height: 300px;">
-            <p>Similarity Score: {{ result.score }}</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 80%;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        .results-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+        }
+
+        .result-card {
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            margin: 10px;
+            text-align: center;
+            width: 280px;
+            border-radius: 8px;
+        }
+
+        .result-card img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        .score {
+            margin-top: 10px;
+            font-size: 16px;
+            color: #555;
+        }
+
+        .separator {
+            margin: 30px 0;
+            height: 2px;
+            background-color: #ddd;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Search Results</h1>
+
+    <h2>Query Image</h2>
+    <div style="text-align: center;">
+        <img src="{{ query_image_url }}" alt="Query Image" style="max-width: 400px; max-height: 400px;">
+    </div>
+
+    <div class="separator"></div>
+
+    <h2>Pattern Similarity Results</h2>
+    <div class="results-container">
+        {% for result in pattern_results %}
+        <div class="result-card">
+            <img src="{{ result.image.image.url }}" alt="Pattern Image">
+            <p class="score">Pattern Similarity Score: {{ result.score }}</p>
         </div>
-    {% endfor %}
+        {% endfor %}
+    </div>
+
+    <div class="separator"></div>
+
+    <h2>Color Similarity Results</h2>
+    <div class="results-container">
+        {% for result in color_results %}
+        <div class="result-card">
+            <img src="{{ result.image.image.url }}" alt="Color Image">
+            <p class="score">Color Similarity Score: {{ result.score }}</p>
+        </div>
+        {% endfor %}
+    </div>
 </div>
+
+</body>
+</html>

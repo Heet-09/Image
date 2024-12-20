@@ -3,7 +3,8 @@ from django.db import models
 
 class Image(models.Model):
     image = models.ImageField(upload_to='img/')
-    features = models.JSONField()  # To store extracted features as JSON
+    pattern_features = models.JSONField(default=list)  # Store pattern features
+    color_features = models.JSONField(default=list)    # Store color features
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

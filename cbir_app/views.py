@@ -35,101 +35,53 @@ def upload_image(request):
             # Generate the correct file URL
             file_url = os.path.join('img', filename)  # Relative path under 'MEDIA_URL'
 
+            # Extract features for pattern and color
+            feature_data = extract_features(fs.path(filename))
+
             # Save the image and its features
-            feature_array = extract_features(fs.path(filename))
-            Image.objects.create(image=file_url, features=feature_array)
+            Image.objects.create(
+                image=file_url,
+                pattern_features=feature_data["pattern"],
+                color_features=feature_data["color"]
+            )
 
         return redirect('upload_image')  # Redirect back to the upload page
 
     return render(request, 'cbir_app/upload_image.html')
 
-import numpy as np
-# def search_image(request):
-#     if request.method == "POST":
-#         query_image_file = request.FILES['image']
-#         fs = FileSystemStorage()
-#         file_path = fs.save(query_image_file.name, query_image_file)
-
-#         # Extract features from query image
-#         query_features = extract_features(fs.path(file_path))
-
-#         # Fetch all stored images and their features
-#         images = Image.objects.all()
-#         database_features = [np.array(img.features) for img in images]
-#         print("database_features",database_features)
-
-#         # Find similar images
-#         indices = find_similar_images(query_features, database_features)
-#         print("indices",indices)
-
-#         # Ensure indices are integers (convert them to Python int)
-#         indices = [int(i) for i in indices]
-#         print("idics",indices)
-
-#         # Get the similar images using integer indices
-#         similar_images = [images[i] for i in indices]
-#         print("similar images",similar_images)
-
-#         return render(request, 'cbir_app/search_results.html', {'images': similar_images})
-#     return render(request, 'cbir_app/search_image.html')
-
-# # for the priting the similarity scores 
-# def search_image(request):
-#     if request.method == "POST":
-#         query_image_file = request.FILES['image']
-#         fs = FileSystemStorage()
-#         file_path = fs.save(query_image_file.name, query_image_file)
-
-#         # Extract features from query image
-#         query_features = extract_features(fs.path(file_path))
-
-#         # Fetch all stored images and their features
-#         images = Image.objects.all()
-#         database_features = [np.array(img.features) for img in images]
-
-#         # Find similar images and their scores
-#         indices, similarity_scores = find_similar_images(query_features, database_features)
-#         print("Indices:", indices)
-#         print("Similarity Scores:", similarity_scores)
-
-#         # Get the similar images with their scores
-#         similar_images_with_scores = [
-#             {"image": images[i], "score": similarity_scores[idx]}
-#             for idx, i in enumerate(indices)
-#         ]
-#         print("Similar Images with Scores:", similar_images_with_scores)
-
-#         return render(request, 'cbir_app/search_results.html', {'similar_images': similar_images_with_scores})
-
-#     return render(request, 'cbir_app/search_image.html')
 
 def search_image(request):
     if request.method == "POST":
         query_image_file = request.FILES['image']
         fs = FileSystemStorage()
         file_path = fs.save(query_image_file.name, query_image_file)
-        query_image_url = fs.url(file_path)  # Get the URL of the uploaded query image
+        query_image_url = fs.url(file_path)
 
         # Extract features from query image
         query_features = extract_features(fs.path(file_path))
 
         # Fetch all stored images and their features
         images = Image.objects.all()
-        database_features = [np.array(img.features) for img in images]
+        database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-        # Find similar images and their scores
-        indices, similarity_scores = find_similar_images(query_features, database_features)
-        indices = [int(i) for i in indices]  # Ensure indices are Python integers
+        # Find similar images
+        similarities = find_similar_images(query_features, database_features, top_k=5)
 
-        # Get the similar images with their scores
-        similar_images_with_scores = [
-            {"image": images[i], "score": similarity_scores[idx]}
-            for idx, i in enumerate(indices)
+        pattern_results = [
+            {"image": images[int(idx)], "score": similarities["pattern"]["scores"][i]}
+            for i, idx in enumerate(similarities["pattern"]["indices"])
         ]
 
+        color_results = [
+            {"image": images[int(idx)], "score": similarities["color"]["scores"][i]}
+            for i, idx in enumerate(similarities["color"]["indices"])
+        ]
+
+
         return render(request, 'cbir_app/search_results.html', {
-            'query_image_url': query_image_url,  # Pass the query image URL to the template
-            'similar_images': similar_images_with_scores,
+            'query_image_url': query_image_url,
+            'pattern_results': pattern_results,
+            'color_results': color_results,
         })
 
     return render(request, 'cbir_app/search_image.html')
