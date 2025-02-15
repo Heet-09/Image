@@ -72,6 +72,9 @@ def search_image(request):
             for i, idx in enumerate(similarities["pattern"]["indices"])
         ]
 
+        # for pat in pattern_results:
+        #     print(f"Image: {pat['image']},pat['']")
+
         color_results = [
             {"image": images[int(idx)], "score": similarities["color"]["scores"][i]}
             for i, idx in enumerate(similarities["color"]["indices"])

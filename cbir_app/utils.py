@@ -49,11 +49,14 @@ def find_similar_images(query_features, database_features, top_k=5):
     color_similarities = cosine_similarity([query_color], color_features)[0]
 
     # Sort and get top_k for each
-    pattern_indices = np.argsort(-pattern_similarities)[:top_k]
-    color_indices = np.argsort(-color_similarities)[:top_k]
+    pattern_indices = np.argsort(-pattern_similarities)
+    color_indices = np.argsort(-color_similarities)
+
 
     pattern_scores = pattern_similarities[pattern_indices]
     color_scores = color_similarities[color_indices]
+
+    # print(pattern_scores)
 
     return {
         "pattern": {"indices": pattern_indices, "scores": pattern_scores},
