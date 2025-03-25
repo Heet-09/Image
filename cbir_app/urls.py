@@ -1,3 +1,4 @@
+# C:\code\Kreon\image\cbir_app\utils.py
 # cbir_app/urls.py
 from django.urls import path
 from .views import upload_image, search_image

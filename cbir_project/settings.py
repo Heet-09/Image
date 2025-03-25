@@ -1,3 +1,5 @@
+# C:\code\Kreon\image\cbir_project\settings.py
+
 """
 Django settings for cbir_project project.
 
@@ -38,7 +40,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "cbir_app"
+    "cbir_app",
+    'rest_framework'
 ]
 
 MIDDLEWARE = [

@@ -1,3 +1,4 @@
+<!-- C:\code\Kreon\image\cbir_app\templates\cbir_app\upload_image.html -->
 <!-- cbir_app/templates/cbir_app/upload_image.html -->
 
 <!DOCTYPE html>
@@ -82,6 +83,7 @@
     <div class="form-container">
         <form method="post" enctype="multipart/form-data">
             {% csrf_token %}
+            <input type="text" name="company_name" placeholder="Enter company name" required>
             <input type="file" name="images" multiple required>
             <button type="submit">Upload</button>
         </form>

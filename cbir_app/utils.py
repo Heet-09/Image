@@ -1,3 +1,4 @@
+# C:\code\Kreon\image\cbir_app\utils.py
 # cbir_app/utils.py
 from tensorflow.keras.applications.resnet50 import preprocess_input
 from tensorflow.keras.preprocessing import image
