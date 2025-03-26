@@ -59,22 +59,26 @@
     <h2>Pattern-Based Matches</h2>
     <div class="image-results">
         {% for result in pattern_results %}
-            <div class="image-card">
-                <img src="{{ result.image }}" alt="Similar Image">
-                <p class="company-name">Company: {{ result.company_name }}</p>
-                <p>Match Score: {{ result.score }}</p>
-            </div>
+        <div class="image-card">
+            <p>Image ID: {{ result.image_id }}</p> <!-- Display retrieved image ID -->
+            <!-- <img src="{{ result.image }}" alt="Similar Image"> -->
+            <p class="company-name">Company: {{ result.company_name }}</p>
+            <p>Match Score: {{ result.score }}</p>
+        </div>
+        
         {% endfor %}
     </div>
 
     <h2>Color-Based Matches</h2>
     <div class="image-results">
         {% for result in color_results %}
-            <div class="image-card">
-                <img src="{{ result.image }}" alt="Similar Image">
-                <p class="company-name">Company: {{ result.company_name }}</p>
-                <p>Match Score: {{ result.score }}</p>
-            </div>
+        <div class="image-card">
+            <p>Image ID: {{ result.image_id }}</p> <!-- Display retrieved image ID -->
+            <!-- <img src="{{ result.image }}" alt="Similar Image"> -->
+            <p class="company-name">Company: {{ result.company_name }}</p>
+            <p>Match Score: {{ result.score }}</p>
+        </div>
+        
         {% endfor %}
     </div>
 </div>

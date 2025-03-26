@@ -8,115 +8,82 @@ from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.http import JsonResponse
 import os
+import tempfile
+
+# def upload_image(request):
+    # if request.method == "POST" and request.FILES.getlist('images'):
+    #     company_name = request.POST.get("company_name").strip()
+    #     if not company_name:
+    #         return render(request, "cbir_app/upload_image.html", {"error": "Company name is required."})
+        
+    #     image_id = request.POST.get("image_id")
+
+
+    #     # Define folder path based on company name
+    #     company_folder = os.path.join(settings.MEDIA_ROOT, 'img', company_name)
+    #     os.makedirs(company_folder, exist_ok=True)
+
+    #     fs = FileSystemStorage(location=company_folder)
+
+    #     for image_file in request.FILES.getlist('images'):
+    #         filename = fs.save(image_file.name, image_file)
+    #         file_url = os.path.join('img', company_name, filename)  # Store relative path
+
+    #         # Extract features
+    #         feature_data = extract_features(fs.path(filename))
+
+    #         # Save image details
+    #         Image.objects.create(
+    #             company_name=company_name,
+    #             image=file_url,
+    #             image_id=image_id,
+    #             pattern_features=feature_data["pattern"],
+    #             color_features=feature_data["color"]
+    #         )
+
+    #     return redirect('upload_image')
+
+    # return render(request, "cbir_app/upload_image.html")
 
 @csrf_exempt
-# def upload_image(request):
-#     if request.method == "POST" and request.FILES.getlist('images'):
-#         # Get list of uploaded files
-#         image_files = request.FILES.getlist('images')
-#         fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT, 'img'))
-
-#         for image_file in image_files:
-#             filename = fs.save(image_file.name, image_file)
-
-#             # Generate the correct file URL
-#             file_url = os.path.join('img', filename)  # Relative path under 'MEDIA_URL'
-
-#             # Extract features for pattern and color
-#             feature_data = extract_features(fs.path(filename))
-
-#             # Save the image and its features
-#             Image.objects.create(
-#                 image=file_url,
-#                 pattern_features=feature_data["pattern"],
-#                 color_features=feature_data["color"]
-#             )
-
-#         return redirect('upload_image')  # Redirect back to the upload page
-
-#     return render(request, 'cbir_app/upload_image.html')
 def upload_image(request):
     if request.method == "POST" and request.FILES.getlist('images'):
-        company_name = request.POST.get("company_name").strip()
+        company_name = request.POST.get("company_name", "").strip()
         if not company_name:
             return render(request, "cbir_app/upload_image.html", {"error": "Company name is required."})
-
-        # Define folder path based on company name
-        company_folder = os.path.join(settings.MEDIA_ROOT, 'img', company_name)
-        os.makedirs(company_folder, exist_ok=True)
-
-        fs = FileSystemStorage(location=company_folder)
+        
+        image_id = request.POST.get("image_id")
 
         for image_file in request.FILES.getlist('images'):
-            filename = fs.save(image_file.name, image_file)
-            file_url = os.path.join('img', company_name, filename)  # Store relative path
+            # Create a temporary file to save the image
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+                temp_file.write(image_file.read())  # Write the uploaded file data
+                temp_file_path = temp_file.name  # Get the file path
 
-            # Extract features
-            feature_data = extract_features(fs.path(filename))
+            try:
+                # Extract features from the saved image file
+                feature_data = extract_features(temp_file_path)
 
-            # Save image details
-            Image.objects.create(
-                company_name=company_name,
-                image=file_url,
-                pattern_features=feature_data["pattern"],
-                color_features=feature_data["color"]
-            )
+                # Save only features & metadata (no actual image)
+                Image.objects.create(
+                    company_name=company_name,
+                    image_id=image_id,
+                    pattern_features=feature_data["pattern"],
+                    color_features=feature_data["color"]
+                )
+            finally:
+                # Remove the temporary file
+                os.remove(temp_file_path)
 
         return redirect('upload_image')
 
     return render(request, "cbir_app/upload_image.html")
 
-@csrf_exempt
-def search_image(request):
-    if request.method == "POST":
-        query_image_file = request.FILES['image']
-        fs = FileSystemStorage()
-        file_path = fs.save(query_image_file.name, query_image_file)
-        query_image_url = fs.url(file_path)
-
-        # Extract features from the query image
-        query_features = extract_features(fs.path(file_path))
-
-        # Fetch all stored images and their features
-        images = Image.objects.all()
-        database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
-
-        # Find similar images
-        similarities = find_similar_images(query_features, database_features, top_k=5)
-
-        pattern_results = [
-            {
-                "image": images[int(idx)].image.url,  # Get image URL
-                "company_name": images[int(idx)].company_name,  # Get company name
-                "score": similarities["pattern"]["scores"][i]
-            }
-            for i, idx in enumerate(similarities["pattern"]["indices"])
-        ]
-
-        color_results = [
-            {
-                "image": images[int(idx)].image.url,
-                "company_name": images[int(idx)].company_name,
-                "score": similarities["color"]["scores"][i]
-            }
-            for i, idx in enumerate(similarities["color"]["indices"])
-        ]
-
-        return render(request, 'cbir_app/search_results.html', {
-            'query_image_url': query_image_url,
-            'pattern_results': pattern_results,
-            'color_results': color_results,
-        })
-
-    return render(request, 'cbir_app/search_image.html')
 
 
 # @csrf_exempt
 # def search_image(request):
 #     if request.method == "POST":
-#         if 'image' not in request.FILES:
-#             return JsonResponse({"error": "No image file uploaded"}, status=400)
-
 #         query_image_file = request.FILES['image']
 #         fs = FileSystemStorage()
 #         file_path = fs.save(query_image_file.name, query_image_file)
@@ -125,8 +92,9 @@ def search_image(request):
 #         # Extract features from the query image
 #         query_features = extract_features(fs.path(file_path))
 
-#         # Fetch all stored images and their features
 #         images = Image.objects.all()
+
+#         # Fetch all stored images and their features
 #         database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
 #         # Find similar images
@@ -134,27 +102,88 @@ def search_image(request):
 
 #         pattern_results = [
 #             {
-#                 "image": request.build_absolute_uri(images[int(idx)].image.url),  # Full URL of image
-#                 "company_name": images[int(idx)].company_name,
-#                 "score": similarities["pattern"]["scores"][i]
+#                 "image": images[int(idx)].image.url,  # Get image URL
+#                 "company_name": images[int(idx)].company_name,  # Get company name
+#                 "score": similarities["pattern"]["scores"][i],
+#                 "image_id":images[int(idx)].image_id
 #             }
 #             for i, idx in enumerate(similarities["pattern"]["indices"])
 #         ]
 
 #         color_results = [
 #             {
-#                 "image": request.build_absolute_uri(images[int(idx)].image.url),
+#                 "image": images[int(idx)].image.url,
 #                 "company_name": images[int(idx)].company_name,
-#                 "score": similarities["color"]["scores"][i]
+#                 "score": similarities["color"]["scores"][i],
+#                 "image_id":images[int(idx)].image_id
 #             }
 #             for i, idx in enumerate(similarities["color"]["indices"])
 #         ]
 
-#         return JsonResponse({
-#             "query_image": request.build_absolute_uri(query_image_url),
-#             "pattern_results": pattern_results,
-#             "color_results": color_results
-#         }, status=200)
+#         return render(request, 'cbir_app/search_results.html', {
+#             'query_image_url': query_image_url,
+#             'pattern_results': pattern_results,
+#             'color_results': color_results,
+#         })
 
-#     return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+#     return render(request, 'cbir_app/search_image.html')
+
+@csrf_exempt
+def search_image(request):
+    if request.method == "POST":
+        query_image_file = request.FILES['image']
+
+        # Create a temporary file to save the uploaded image
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            temp_file.write(query_image_file.read())  # Save uploaded file
+            temp_file_path = temp_file.name  # Get the temp file path
+
+        try:
+            # Extract features from the saved image file
+            query_features = extract_features(temp_file_path)
+
+            # Fetch all stored feature vectors from the database
+            images = Image.objects.all()
+            database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
+
+            if not database_features:
+                return render(request, 'cbir_app/search_results.html', {
+                    'query_image_url': None,
+                    'pattern_results': [],
+                    'color_results': []
+                })
+
+            # Find similar images
+            similarities = find_similar_images(query_features, database_features, top_k=5)
+
+            pattern_results = [
+                {
+                    "company_name": images[int(idx)].company_name,
+                    "score": similarities["pattern"]["scores"][i],
+                    "image_id": images[int(idx)].image_id,
+                }
+                for i, idx in enumerate(similarities["pattern"]["indices"])
+            ]
+
+            color_results = [
+                {
+                    "company_name": images[int(idx)].company_name,
+                    "score": similarities["color"]["scores"][i],
+                    "image_id": images[int(idx)].image_id,
+                }
+                for i, idx in enumerate(similarities["color"]["indices"])
+            ]
+
+            return render(request, 'cbir_app/search_results.html', {
+                'query_image_url': None,  # No image stored, only features
+                'pattern_results': pattern_results,
+                'color_results': color_results,
+            })
+
+        finally:
+            # Remove the temporary file to free up space
+            os.remove(temp_file_path)
+
+    return render(request, 'cbir_app/search_image.html')
+
 
