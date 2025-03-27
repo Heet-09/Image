@@ -81,13 +81,12 @@
     <h1>Upload Images</h1>
 
     <div class="form-container">
-        <form method="post" enctype="multipart/form-data">
+        <form method="post">
             {% csrf_token %}
             <input type="text" name="company_name" placeholder="Enter company name" required>
-            <input type="number" name="image_id" placeholder="Enter image_id" >
-            <input type="file" name="images" multiple required>
-            <button type="submit">Upload</button>
-        </form>
+            <input type="text" name="folder_path" placeholder="Enter folder path" required>
+            <button type="submit">Process Folder</button>
+        </form>        
     </div>
 
     <p class="info-text">Select multiple images to upload at once. Supported formats: JPG, PNG, etc.</p>
