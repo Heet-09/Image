@@ -7,7 +7,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path('cbir/', include('cbir_app.urls')),
+    path('', include('cbir_app.urls')),
 ]
 
 # Add this line to serve media files in development

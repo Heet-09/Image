@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Results</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="max-w-4xl mx-auto my-10 p-6 bg-white shadow-lg rounded-lg">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Search Results</h1>
+        <h2 class="text-xl font-semibold text-center text-gray-700">Query Image</h2>
+        <div class="flex justify-center my-4">
+            <!-- <img src="{{ query_image_url }}" alt="Query Image" class="w-64 h-auto rounded-lg shadow-md"> -->
+        </div>
+        <div class="mt-6">
+            <h2 class="text-lg font-semibold text-gray-700 text-center">Pattern-Based Matches</h2>
+            <div class="flex flex-wrap justify-center gap-6 mt-4">
+                {% for result in pattern_results %}
+                    <div class="bg-white p-4 rounded-lg shadow-md w-60 text-center">
+                        <!-- <img src="{{ result.image }}" alt="Similar Image" class="w-full h-auto rounded-md"> -->
+                        <p class="mt-2 font-semibold text-gray-700">Company: {{ result.company_name }}</p>
+                        <p class="text-sm text-gray-500">Image ID: {{ result.image_id }}</p>
+                        <p class="text-sm text-gray-500">Match Score: {{ result.score }}</p>
+                    </div>
+                {% empty %}
+                    <p class="text-center text-gray-500">No pattern-based matches found.</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="mt-6">
+            <h2 class="text-lg font-semibold text-gray-700 text-center">Color-Based Matches</h2>
+            <div class="flex flex-wrap justify-center gap-6 mt-4">
+                {% for result in color_results %}
+                    <div class="bg-white p-4 rounded-lg shadow-md w-60 text-center">
+                        <!-- <img src="{{ result.image }}" alt="Similar Image" class="w-full h-auto rounded-md"> -->
+                        <p class="mt-2 font-semibold text-gray-700">Company: {{ result.company_name }}</p>
+                        <p class="text-sm text-gray-500">Image ID: {{ result.image_id }}</p>
+                        <p class="text-sm text-gray-500">Match Score: {{ result.score }}</p>
+                    </div>
+                {% empty %}
+                    <p class="text-center text-gray-500">No color-based matches found.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

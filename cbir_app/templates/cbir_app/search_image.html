@@ -1,68 +1,23 @@
-<!-- C:\code\Kreon\image\cbir_app\templates\cbir_app\upload_image.html -->
-<!-- cbir_app/templates/cbir_app/search_image.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Image</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container {
-            width: 80%;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        h1 {
-            color: #333;
-            text-align: center;
-        }
-
-        form {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            margin-top: 50px;
-        }
-
-        input[type="file"] {
-            font-size: 16px;
-            padding: 10px;
-        }
-
-        button {
-            padding: 10px 20px;
-            font-size: 16px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-
-        button:hover {
-            background-color: #45a049;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100 font-sans">
 
-<div class="container">
-    <h1>Search for Similar Images</h1>
-    <form method="post" enctype="multipart/form-data">
+<div class="max-w-xl mx-auto mt-20 p-6 bg-white shadow-lg rounded-lg">
+    <h1 class="text-3xl font-bold text-center text-gray-800">Search for Similar Images</h1>
+    
+    <form method="post" enctype="multipart/form-data" class="flex flex-col items-center gap-4 mt-6">
         {% csrf_token %}
-        <input type="file" name="image" required>
-        <button type="submit">Search</button>
+        <input type="file" name="image" required class="border border-gray-300 p-2 rounded-lg w-full text-gray-700">
+        <button type="submit" class="px-6 py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition">Search</button>
     </form>
 </div>
 
 </body>
 </html>
+ 
