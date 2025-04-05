@@ -1,10 +1,18 @@
 # C:\code\Kreon\image\cbir_app\utils.py
 # cbir_app/urls.py
 from django.urls import path
-from .views import upload_image, search_image
+from .views import *
 
 urlpatterns = [
-    path('upload/', upload_image, name='upload_image'),
-    path('search/', search_image, name='search_image'),
+    path('',home, name='home'),
+    path('cbir/upload/', upload_image, name='upload_image'),
+    path('cbir/search/', search_image, name='search_image'),
+    path('cbir/upload/api/',upload_image_api, name='upload_image_api'),
+    path('cbir/search/api/',search_image_api, name='search_image_api'),
+    # path('api/upload/', )'
+    path('cbir/upload/id/',upload_image_id, name='upload_image_id'),
+    path('cbir/search/id/',search_image_id, name='search_image_id'),
+    path('cbir/upload/id/api/',upload_image_id_api, name='upload_image_id_api'),
+    path('cbir/search/id/api/',search_image_id_api, name='search_image_id_api')
 ]
 

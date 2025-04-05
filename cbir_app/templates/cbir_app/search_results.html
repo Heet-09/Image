@@ -1,83 +1,46 @@
-"C:\code\Kreon\image\cbir_app\templates\cbir_app\search_results.html"
+<!-- C:\code\Kreon\image\cbir_app\templates\cbir_app\search_results.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Results</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            width: 80%;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        h1, h2 {
-            text-align: center;
-            color: #333;
-        }
-        .image-results {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 30px;
-        }
-        .image-card {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-        img {
-            width: 200px;
-            height: auto;
-            border-radius: 5px;
-        }
-        .company-name {
-            font-weight: bold;
-            margin-top: 5px;
-            color: #555;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-100 font-sans">
+    
+    <div class="max-w-4xl mx-auto mt-10 p-6 bg-white shadow-lg rounded-lg">
+        <h1 class="text-3xl font-bold text-center text-gray-800">Search Results</h1>
+        <!-- Query Image -->
+        <h2 class="text-xl font-semibold text-center text-gray-700 mt-6">Query Image</h2>
+        <div class="flex justify-center mt-4">
+            <img src="{{ query_image_url }}" alt="Query Image" class="w-48 h-auto rounded-lg shadow-md">
+        </div>
 
-<div class="container">
-    <h1>Search Results</h1>
-    <h2>Query Image</h2>
-    <div style="text-align: center;">
-        <img src="{{ query_image_url }}" alt="Query Image">
-    </div>
+        <!-- Pattern-Based Matches -->
+        <h2 class="text-xl font-semibold text-center text-gray-700 mt-10">Pattern-Based Matches</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+            {% for result in pattern_results %}
+                <div class="bg-white p-4 rounded-lg shadow-md text-center hover:shadow-lg transition">
+                    <img src="{{ result.image }}" alt="Similar Image" class="w-40 h-auto mx-auto rounded-md">
+                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_name }}</p>
+                    <p class="text-gray-600">Match Score: {{ result.score }}</p>
+                </div>
+            {% endfor %}
+        </div>
 
-    <h2>Pattern-Based Matches</h2>
-    <div class="image-results">
-        {% for result in pattern_results %}
-            <div class="image-card">
-                <img src="{{ result.image }}" alt="Similar Image">
-                <p class="company-name">Company: {{ result.company_name }}</p>
-                <p>Match Score: {{ result.score }}</p>
-            </div>
-        {% endfor %}
+        <!-- Color-Based Matches -->
+        <h2 class="text-xl font-semibold text-center text-gray-700 mt-10">Color-Based Matches</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+            {% for result in color_results %}
+                <div class="bg-white p-4 rounded-lg shadow-md text-center hover:shadow-lg transition">
+                    <img src="{{ result.image }}" alt="Similar Image" class="w-40 h-auto mx-auto rounded-md">
+                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_name }}</p>
+                    <p class="text-gray-600">Match Score: {{ result.score }}</p>
+                </div>
+            {% endfor %}
+        </div>
     </div>
-
-    <h2>Color-Based Matches</h2>
-    <div class="image-results">
-        {% for result in color_results %}
-            <div class="image-card">
-                <img src="{{ result.image }}" alt="Similar Image">
-                <p class="company-name">Company: {{ result.company_name }}</p>
-                <p>Match Score: {{ result.score }}</p>
-            </div>
-        {% endfor %}
-    </div>
-</div>
 
 </body>
 </html>
