@@ -11,6 +11,13 @@
     <div class="max-w-lg mx-auto mt-10 p-6 bg-white shadow-lg rounded-lg">
         <h1 class="text-2xl font-bold text-center text-gray-800">Upload Images</h1>
         <div class="mt-6">
+            
+            <p class="text-center mt-4">
+                <a href="{% url 'search_image' %}" 
+                   class="text-blue-500 hover:text-blue-700 font-medium underline">
+                    Search image
+                </a>
+            </p>
             <form method="post" enctype="multipart/form-data" class="space-y-4">
                 {% csrf_token %}
                 
