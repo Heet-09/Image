@@ -14,7 +14,7 @@
         <!-- Query Image -->
         <h2 class="text-xl font-semibold text-center text-gray-700 mt-6">Query Image</h2>
         <div class="flex justify-center mt-4">
-            <img src="{{ query_image_url }}" alt="Query Image" class="w-48 h-auto rounded-lg shadow-md">
+            <img src="{{ query_image_url }}" alt="Query" class="w-48 h-auto rounded-lg shadow-md">
         </div>
 
         <!-- Pattern-Based Matches -->
@@ -22,8 +22,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
             {% for result in pattern_results %}
                 <div class="bg-white p-4 rounded-lg shadow-md text-center hover:shadow-lg transition">
-                    <img src="{{ result.image }}" alt="Similar Image" class="w-40 h-auto mx-auto rounded-md">
-                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_name }}</p>
+                    <img src="{{ result.image }}" alt="Similar" class="w-40 h-auto mx-auto rounded-md">
+                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_id }}</p>
                     <p class="text-gray-600">Match Score: {{ result.score }}</p>
                 </div>
             {% endfor %}
@@ -34,8 +34,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
             {% for result in color_results %}
                 <div class="bg-white p-4 rounded-lg shadow-md text-center hover:shadow-lg transition">
-                    <img src="{{ result.image }}" alt="Similar Image" class="w-40 h-auto mx-auto rounded-md">
-                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_name }}</p>
+                    <img src="{{ result.image }}" alt="Similar" class="w-40 h-auto mx-auto rounded-md">
+                    <p class="text-gray-700 font-semibold mt-2">Company: {{ result.company_id }}</p>
                     <p class="text-gray-600">Match Score: {{ result.score }}</p>
                 </div>
             {% endfor %}

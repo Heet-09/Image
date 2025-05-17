@@ -1,5 +1,6 @@
 # C:\code\Kreon\image\cbir_app\views.py
 # cbir_app/views.py
+from django.db import IntegrityError
 from django.shortcuts import render, redirect
 from .models import Image,ImageFeature
 from .utils import extract_features, find_similar_images
@@ -31,26 +32,27 @@ def validate_token(request):
 
 def upload_image(request):
     if request.method == "POST" and request.FILES.getlist('images'):
-        company_name = request.POST.get("company_name").strip()
-        if not company_name:
-            return render(request, "cbir_app/upload_image.html", {"error": "Company name is required."})
+        try:
+            company_id = int(request.POST.get("company_id").strip())
+        except (TypeError, ValueError):
+            return render(request, "cbir_app/upload_image.html", {"error": "Valid company ID is required."})
 
         # Define folder path based on company name
-        company_folder = os.path.join(settings.MEDIA_ROOT, 'img', company_name)
+        company_folder = os.path.join(settings.MEDIA_ROOT, 'img', str(company_id))
         os.makedirs(company_folder, exist_ok=True)
 
         fs = FileSystemStorage(location=company_folder)
 
         for image_file in request.FILES.getlist('images'):
             filename = fs.save(image_file.name, image_file)
-            file_url = os.path.join('img', company_name, filename)  # Store relative path
+            file_url = os.path.join('img', str(company_id), filename)# Store relative path
 
             # Extract features
             feature_data = extract_features(fs.path(filename))
 
             # Save image details
             Image.objects.create(
-                company_name=company_name,
+                company_id=company_id,
                 image=file_url,
                 pattern_features=feature_data["pattern"],
                 color_features=feature_data["color"]
@@ -81,7 +83,7 @@ def search_image(request):
         pattern_results = [
             {
                 "image": images[int(idx)].image.url,  # Get image URL
-                "company_name": images[int(idx)].company_name,  # Get company name
+                "company_id": images[int(idx)].company_id,  # Get company name
                 "score": similarities["pattern"]["scores"][i]
             }
             for i, idx in enumerate(similarities["pattern"]["indices"])
@@ -90,7 +92,7 @@ def search_image(request):
         color_results = [
             {
                 "image": images[int(idx)].image.url,
-                "company_name": images[int(idx)].company_name,
+                "company_id": images[int(idx)].company_id,
                 "score": similarities["color"]["scores"][i]
             }
             for i, idx in enumerate(similarities["color"]["indices"])
@@ -105,7 +107,6 @@ def search_image(request):
     return render(request, 'cbir_app/search_image.html')
 
 @api_view(['POST'])
-# @parser_classes([MultiPartParser, FormParser])
 def upload_image_api(request):
     token_response = validate_token(request)
     if token_response:
@@ -113,35 +114,38 @@ def upload_image_api(request):
 
     if 'images' not in request.FILES:
         return Response({"error": "No images provided."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    company_name = request.data.get("company_name", "").strip()
-    if not company_name:
-        return Response({"error": "Company name is required."}, status=status.HTTP_400_BAD_REQUEST)
-    
-    company_folder = os.path.join(settings.MEDIA_ROOT, 'img', company_name)
+
+    try:
+        company_id = int(request.data.get("company_id", "").strip())
+    except (TypeError, ValueError):
+        return Response({"error": "Valid company ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    company_folder = os.path.join(settings.MEDIA_ROOT, 'img', str(company_id))
     os.makedirs(company_folder, exist_ok=True)
     fs = FileSystemStorage(location=company_folder)
-    
+
     uploaded_images = []
     for image_file in request.FILES.getlist('images'):
         filename = fs.save(image_file.name, image_file)
-        file_url = os.path.join('img', company_name, filename)
-        
+        file_url = os.path.join('img', str(company_id), filename)
+
         feature_data = extract_features(fs.path(filename))
-        
+
         image_record = Image.objects.create(
-            company_name=company_name,
+            company_id=company_id,
             image=file_url,
             pattern_features=feature_data["pattern"],
             color_features=feature_data["color"]
         )
-        
+
         uploaded_images.append({"id": image_record.id, "image_url": file_url})
-    
-    return Response({"message": "Images uploaded successfully", "uploaded_images": uploaded_images}, status=status.HTTP_201_CREATED)
+
+    return Response({
+        "message": "Images uploaded successfully",
+        "uploaded_images": uploaded_images
+    }, status=status.HTTP_201_CREATED)
 
 @api_view(['POST'])
-# @parser_classes([MultiPartParser])
 def search_image_api(request):
     token_response = validate_token(request)
     if token_response:
@@ -149,31 +153,31 @@ def search_image_api(request):
 
     if 'image' not in request.FILES:
         return Response({"error": "No query image provided."}, status=status.HTTP_400_BAD_REQUEST)
-    
+
     query_image_file = request.FILES['image']
     fs = FileSystemStorage()
     file_path = fs.save(query_image_file.name, query_image_file)
     query_image_url = fs.url(file_path)
-    
+
     query_features = extract_features(fs.path(file_path))
-    
+
     images = Image.objects.all()
     database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
-    
+
     similarities = find_similar_images(query_features, database_features, top_k=5)
-    
+
     pattern_results = [{
         "image": images[int(idx)].image.url,
-        "company_name": images[int(idx)].company_name,
+        "company_id": images[int(idx)].company_id,
         "score": similarities["pattern"]["scores"][i]
     } for i, idx in enumerate(similarities["pattern"]["indices"])]
-    
+
     color_results = [{
         "image": images[int(idx)].image.url,
-        "company_name": images[int(idx)].company_name,
+        "company_id": images[int(idx)].company_id,
         "score": similarities["color"]["scores"][i]
     } for i, idx in enumerate(similarities["color"]["indices"])]
-    
+
     return Response({
         "query_image_url": query_image_url,
         "pattern_results": pattern_results,
@@ -204,11 +208,13 @@ def upload_image_id(request):
         if "images" not in request.FILES:
             return render(request, "cbir_app/upload_image_id.html", {"error": "No images provided"})
 
-        company_name = request.POST.get("company_name", "").strip()
-        if not company_name:
-            return render(request, "cbir_app/upload_image_id.html", {"error": "Company name is required."})
+        try:
+            company_id = int(request.POST.get("company_id", ""))
+        except ValueError:
+            return render(request, "cbir_app/upload_image_id.html", {"error": "Valid company ID is required."})
+        
 
-        image_id = request.POST.get("image_id")
+        image_ref_id = request.POST.get("image_ref_id")
         uploaded_images = []
 
         for image_file in request.FILES.getlist("images"):
@@ -222,14 +228,14 @@ def upload_image_id(request):
 
                 # Save metadata (without storing the actual image)
                 image_entry = ImageFeature.objects.create(
-                    company_name=company_name,
-                    image_id=image_id,
+                    company_id=company_id,
+                    image_ref_id=image_ref_id,
                     pattern_features=feature_data["pattern"],
                     color_features=feature_data["color"]
                 )
                 uploaded_images.append({
-                    "image_id": image_entry.image_id,
-                    "company_name": image_entry.company_name
+                    "image_ref_id": image_entry.image_ref_id,
+                    "company_id": image_entry.company_id
                 })
             finally:
                 os.remove(temp_file_path)
@@ -266,18 +272,18 @@ def search_image_id(request):
 
             pattern_results = [
                 {
-                    "company_name": images[int(idx)].company_name,
+                    "company_id": images[int(idx)].company_id,
                     "score": similarities["pattern"]["scores"][i],
-                    "image_id": images[int(idx)].image_id,
+                    "image_ref_id": images[int(idx)].image_ref_id,
                 }
                 for i, idx in enumerate(similarities["pattern"]["indices"])
             ]
 
             color_results = [
                 {
-                    "company_name": images[int(idx)].company_name,
+                    "company_id": images[int(idx)].company_id,
                     "score": similarities["color"]["scores"][i],
-                    "image_id": images[int(idx)].image_id,
+                    "image_ref_id": images[int(idx)].image_ref_id,
                 }
                 for i, idx in enumerate(similarities["color"]["indices"])
             ]
@@ -307,11 +313,18 @@ def upload_image_id_api(request):
     if "images" not in request.FILES:
         return Response({"error": "No images provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-    company_name = request.data.get("company_name", "").strip()
-    if not company_name:
-        return Response({"error": "Company name is required."}, status=status.HTTP_400_BAD_REQUEST)
+    try:
+        company_id = int(request.POST.get("company_id", ""))
+    except ValueError:
+        return render(request, "cbir_app/upload_image_id.html", {"error": "Valid company ID is required."})
+        
+    image_ref_id = request.data.get("image_ref_id")
 
-    image_id = request.data.get("image_id")
+    if ImageFeature.objects.filter(company_id=company_id, image_ref_id=image_ref_id).exists():
+        print("Image reference ID already exists")
+        return render(request, "cbir_app/upload_image_id.html", {
+            "error": "This company ID and image reference ID combination already exists."
+        })
 
     uploaded_images = []
     for image_file in request.FILES.getlist("images"):
@@ -325,14 +338,18 @@ def upload_image_id_api(request):
 
             # Save metadata (without storing the actual image)
             image_entry = ImageFeature.objects.create(
-                company_name=company_name,
-                image_id=image_id,
+                company_id=company_id,
+                image_ref_id=image_ref_id,
                 pattern_features=feature_data["pattern"],
                 color_features=feature_data["color"]
             )
             uploaded_images.append({
-                "image_id": image_entry.image_id,
-                "company_name": image_entry.company_name
+                "image_ref_id": image_entry.image_ref_id,
+                "company_id": image_entry.company_id
+            })
+        except IntegrityError:
+            return render(request, "cbir_app/upload_image_id.html", {
+                "error": "This company ID and image reference ID combination already exists (enforced at database level)."
             })
         finally:
             os.remove(temp_file_path)
@@ -371,18 +388,18 @@ def search_image_id_api(request):
 
         pattern_results = [
             {
-                "company_name": images[int(idx)].company_name,
+                "company_id": images[int(idx)].company_id,
                 "score": similarities["pattern"]["scores"][i],
-                "image_id": images[int(idx)].image_id,
+                "image_ref_id": images[int(idx)].image_ref_id,
             }
             for i, idx in enumerate(similarities["pattern"]["indices"])
         ]
 
         color_results = [
             {
-                "company_name": images[int(idx)].company_name,
+                "company_id": images[int(idx)].company_id,
                 "score": similarities["color"]["scores"][i],
-                "image_id": images[int(idx)].image_id,
+                "image_ref_id": images[int(idx)].image_ref_id,
             }
             for i, idx in enumerate(similarities["color"]["indices"])
         ]

@@ -21,9 +21,8 @@
             <form method="post" enctype="multipart/form-data" class="space-y-4">
                 {% csrf_token %}
                 
-                <input type="text" name="company_name" placeholder="Enter company name" required
+               <input type="text" name="company_id" placeholder="Enter company ID" required
                     class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-                
                 <input type="file" name="images" multiple required
                     class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                 
