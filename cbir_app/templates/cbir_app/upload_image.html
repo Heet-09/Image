@@ -25,7 +25,15 @@
                     class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <input type="file" name="images" multiple required
                     class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-                
+                <div>
+                    <label class="block mb-1 text-gray-700 font-medium">Optional Filters</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {% for i in range_10 %}
+                        <input type="text" name="filter_{{i}}" placeholder="Filter {{i}}" 
+                            class="w-full p-3 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {% endfor %}
+                    </div>
+                </div>
                 <button type="submit"
                     class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded transition duration-300">
                     Upload

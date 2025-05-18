@@ -36,6 +36,10 @@ def upload_image(request):
             company_id = int(request.POST.get("company_id").strip())
         except (TypeError, ValueError):
             return render(request, "cbir_app/upload_image.html", {"error": "Valid company ID is required."})
+        
+        filters = {}
+        for i in range(1, 11):
+            filters[f'filter_{i}'] = request.POST.get(f'filter_{i}', '').strip()
 
         # Define folder path based on company name
         company_folder = os.path.join(settings.MEDIA_ROOT, 'img', str(company_id))
@@ -55,12 +59,15 @@ def upload_image(request):
                 company_id=company_id,
                 image=file_url,
                 pattern_features=feature_data["pattern"],
-                color_features=feature_data["color"]
+                color_features=feature_data["color"],
+                **filters
             )
 
         return redirect('upload_image')
-
-    return render(request, "cbir_app/upload_image.html")
+    context = {
+        'range_10': range(1, 11)
+    }
+    return render(request, 'cbir_app/upload_image.html', context)
 
 @csrf_exempt
 def search_image(request):
@@ -119,6 +126,10 @@ def upload_image_api(request):
         company_id = int(request.data.get("company_id", "").strip())
     except (TypeError, ValueError):
         return Response({"error": "Valid company ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+    
+    filters = {}
+    for i in range(1, 11):
+        filters[f'filter_{i}'] = request.data.get(f'filter_{i}', '').strip()
 
     company_folder = os.path.join(settings.MEDIA_ROOT, 'img', str(company_id))
     os.makedirs(company_folder, exist_ok=True)
@@ -135,7 +146,8 @@ def upload_image_api(request):
             company_id=company_id,
             image=file_url,
             pattern_features=feature_data["pattern"],
-            color_features=feature_data["color"]
+            color_features=feature_data["color"],
+            **filters
         )
 
         uploaded_images.append({"id": image_record.id, "image_url": file_url})
@@ -213,6 +225,9 @@ def upload_image_id(request):
         except ValueError:
             return render(request, "cbir_app/upload_image_id.html", {"error": "Valid company ID is required."})
         
+        filters = {}
+        for i in range(1, 11):
+            filters[f'filter_{i}'] = request.POST.get(f'filter_{i}', '').strip()
 
         image_ref_id = request.POST.get("image_ref_id")
         uploaded_images = []
@@ -231,7 +246,8 @@ def upload_image_id(request):
                     company_id=company_id,
                     image_ref_id=image_ref_id,
                     pattern_features=feature_data["pattern"],
-                    color_features=feature_data["color"]
+                    color_features=feature_data["color"],
+                    **filters
                 )
                 uploaded_images.append({
                     "image_ref_id": image_entry.image_ref_id,
@@ -242,7 +258,10 @@ def upload_image_id(request):
 
         return render(request, "cbir_app/upload_image_id.html", {"message": "Images uploaded successfully", "uploaded_images": uploaded_images})
 
-    return render(request,"cbir_app/upload_image_id.html")
+    context = {
+        'range_10': range(1, 11)
+    }
+    return render(request,"cbir_app/upload_image_id.html",context)
 
 def search_image_id(request):
     """
@@ -320,6 +339,10 @@ def upload_image_id_api(request):
         
     image_ref_id = request.data.get("image_ref_id")
 
+    filters = {}
+    for i in range(1, 11):
+        filters[f'filter_{i}'] = request.data.get(f'filter_{i}', '').strip()
+
     if ImageFeature.objects.filter(company_id=company_id, image_ref_id=image_ref_id).exists():
         print("Image reference ID already exists")
         return render(request, "cbir_app/upload_image_id.html", {
@@ -341,7 +364,8 @@ def upload_image_id_api(request):
                 company_id=company_id,
                 image_ref_id=image_ref_id,
                 pattern_features=feature_data["pattern"],
-                color_features=feature_data["color"]
+                color_features=feature_data["color"],
+                **filters
             )
             uploaded_images.append({
                 "image_ref_id": image_entry.image_ref_id,
