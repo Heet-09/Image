@@ -14,6 +14,7 @@ from django.conf import settings
 from django.http import JsonResponse
 import os
 import tempfile
+from pathlib import Path
 
 
 def home(request):
@@ -166,29 +167,29 @@ def search_image_api(request):
     if 'image' not in request.FILES:
         return Response({"error": "No query image provided."}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Get optional parameters
+    top_k = int(request.data.get("top_k", 5))  # default to 5
+    threshold = float(request.data.get("threshold", 0.0))  # default to 0.0
+
+    # Save uploaded image
     query_image_file = request.FILES['image']
     fs = FileSystemStorage()
     file_path = fs.save(query_image_file.name, query_image_file)
     query_image_url = fs.url(file_path)
 
+    # Extract features
     query_features = extract_features(fs.path(file_path))
 
-    images = Image.objects.all()
+    # Get all images and their features
+    images = list(Image.objects.all())
     database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-    similarities = find_similar_images(query_features, database_features, top_k=5)
+    # Compute similarities
+    similarities = find_similar_images(query_features, database_features)
 
-    pattern_results = [{
-        "image": images[int(idx)].image.url,
-        "company_id": images[int(idx)].company_id,
-        "score": similarities["pattern"]["scores"][i]
-    } for i, idx in enumerate(similarities["pattern"]["indices"])]
-
-    color_results = [{
-        "image": images[int(idx)].image.url,
-        "company_id": images[int(idx)].company_id,
-        "score": similarities["color"]["scores"][i]
-    } for i, idx in enumerate(similarities["color"]["indices"])]
+    # Filter results by threshold and limit by top_k
+    pattern_results = filter_and_format_results(similarities["pattern"], images, threshold, top_k)
+    color_results = filter_and_format_results(similarities["color"], images, threshold, top_k)
 
     return Response({
         "query_image_url": query_image_url,
@@ -196,20 +197,26 @@ def search_image_api(request):
         "color_results": color_results
     }, status=status.HTTP_200_OK)
 
-
-
+def filter_and_format_results(similarity_data, images, threshold, top_k):
+    results = []
+    count = 0
+    for i, idx in enumerate(similarity_data["indices"]):
+        score = similarity_data["scores"][i]
+        if score >= threshold:
+            results.append({
+                "image": images[int(idx)].image.url,
+                "company_id": images[int(idx)].company_id,
+                "score": score
+            })
+            count += 1
+        if count >= top_k:
+            break
+    return results
 # ################### for id ####################
 ###################################################
 #############################################
 
 
-
-
-
-
-
-
-#################################
 def upload_image_id(request):
     """
     View to upload an image, extract features, and store metadata in the database.
@@ -392,6 +399,9 @@ def search_image_id_api(request):
 
     if "image" not in request.FILES:
         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    top_k = int(request.data.get("top_k", 5))
+    threshold = float(request.data.get("threshold", 0.0))
 
     query_image_file = request.FILES["image"]
 
@@ -437,4 +447,37 @@ def search_image_id_api(request):
     finally:
         os.remove(temp_file_path)
 
+
+################Upload Image API######################
+def upload_assets(request):
+    if request.method == "POST":
+        excel_file = request.FILES.get("excel_file")
+        image_files = request.FILES.getlist("images")
+
+        if not excel_file or not image_files:
+            return render(request, "cbir_app/upload_assets.html", {"error": "Both Excel and images are required."})
+
+        data_dir = Path(settings.BASE_DIR) / "data"
+        images_dir = data_dir / "images"
+
+        # Ensure directories exist
+        data_dir.mkdir(exist_ok=True)
+        images_dir.mkdir(exist_ok=True)
+
+        # Save Excel
+        excel_path = data_dir / "image_data.xlsx"
+        with open(excel_path, "wb+") as f:
+            for chunk in excel_file.chunks():
+                f.write(chunk)
+
+        # Save images
+        for image in image_files:
+            image_path = images_dir / image.name
+            with open(image_path, "wb+") as f:
+                for chunk in image.chunks():
+                    f.write(chunk)
+
+        return render(request, "cbir_app/upload_assets.html", {"message": "Files uploaded successfully."})
+
+    return render(request, "cbir_app/upload_assets.html")
 

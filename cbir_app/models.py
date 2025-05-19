@@ -49,3 +49,4 @@ class ImageFeature(models.Model):
         ]
     def __str__(self):
         return f"{self.company_id} - {self.image_ref_id}"
+    

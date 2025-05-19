@@ -13,6 +13,7 @@ urlpatterns = [
     path('cbir/upload/id/',upload_image_id, name='upload_image_id'),
     path('cbir/search/id/',search_image_id, name='search_image_id'),
     path('cbir/upload/id/api/',upload_image_id_api, name='upload_image_id_api'),
-    path('cbir/search/id/api/',search_image_id_api, name='search_image_id_api')
+    path('cbir/search/id/api/',search_image_id_api, name='search_image_id_api'),
+    path('upload_assets/', upload_assets, name='upload_assets'),
 ]
 
