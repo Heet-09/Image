@@ -18,7 +18,7 @@
                 {% for result in pattern_results %}
                     <div class="bg-white p-4 rounded-lg shadow-md w-60 text-center">
                         <p class="mt-2 font-semibold text-gray-700">Company: {{ result.company_id }}</p>
-                        <p class="text-sm text-gray-500">Image ID: {{ result.image_id }}</p>
+                        <p class="text-sm text-gray-500">Image ID: {{ result.image_ref_id }}</p>
                         <p class="text-sm text-gray-500">Match Score: {{ result.score }}</p>
                     </div>
                 {% empty %}
@@ -32,7 +32,7 @@
                 {% for result in color_results %}
                     <div class="bg-white p-4 rounded-lg shadow-md w-60 text-center">
                         <p class="mt-2 font-semibold text-gray-700">Company: {{ result.company_id}}</p>
-                        <p class="text-sm text-gray-500">Image ID: {{ result.image_id }}</p>
+                        <p class="text-sm text-gray-500">Image ID: {{ result.image_ref_id }}</p>
                         <p class="text-sm text-gray-500">Match Score: {{ result.score }}</p>
                     </div>
                 {% empty %}
