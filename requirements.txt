@@ -1,0 +1,10 @@
+django
+scikit-learn
+numpy
+pillow
+pandas
+requests
+django-cors-headers
+django-rest-framework
+django-filter
+tensorflow
