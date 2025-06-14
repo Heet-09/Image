@@ -47,6 +47,9 @@ class ImageFeature(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['company_id', 'image_ref_id'], name='unique_company_image')
         ]
+        indexes = [
+            models.Index(fields=['company_id', 'image_ref_id'], name='company_image_idx')
+        ]
     def __str__(self):
         return f"{self.company_id} - {self.image_ref_id}"
     

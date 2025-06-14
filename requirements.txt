@@ -8,3 +8,5 @@ django-cors-headers
 django-rest-framework
 django-filter
 tensorflow
+opnecv-python
+faiss_cpu
