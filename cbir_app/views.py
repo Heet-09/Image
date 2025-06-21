@@ -22,6 +22,7 @@ from .feature_cache import feature_cache
 
 
 
+
 def home(request):
     return render (request, "cbir_app/home.html")
 # Dummy Token
@@ -145,6 +146,7 @@ def upload_image(request):
 # --- Update search_image view ---
 @csrf_exempt
 def search_image(request):
+    feature_cache.load()
     if request.method == "POST":
         query_image_file = request.FILES['image']
         fs = FileSystemStorage()
@@ -232,6 +234,7 @@ def upload_image_api(request):
 
 @api_view(['POST'])
 def search_image_api(request):
+    feature_cache.load()
     token_response = validate_token(request)
     if token_response:
         return token_response
@@ -359,6 +362,7 @@ def search_image_id(request):
     """
     View to search for similar images based on features and render results.
     """
+    feature_cache.load()
     if request.method == "POST":
     
         if "image" not in request.FILES:
@@ -590,6 +594,7 @@ def search_image_id_api(request):
     API to search for similar images based on features.
     Uses in-memory FAISS index and cached features for speed.
     """
+    feature_cache.load()
     import numpy as np
     import faiss
     import os

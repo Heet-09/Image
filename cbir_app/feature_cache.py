@@ -4,14 +4,17 @@ from .models import ImageFeature
 
 class FeatureCache:
     def __init__(self):
+        self._loaded = False
         self.images = []
         self.pattern_features = None
         self.color_features = None
         self.pattern_index = None
         self.color_index = None
-        self.load_features()
 
-    def load_features(self):
+    def load(self):
+        if self._loaded:
+            return
+
         all_images = list(ImageFeature.objects.all())
         self.images = all_images
         self.pattern_features = np.array([img.pattern_features for img in all_images], dtype=np.float32)
@@ -25,4 +28,7 @@ class FeatureCache:
         faiss.normalize_L2(self.color_features)
         self.color_index.add(self.color_features)
 
+        self._loaded = True
+
+# Instantiate it without loading immediately
 feature_cache = FeatureCache()
