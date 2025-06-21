@@ -36,6 +36,29 @@ def validate_token(request):
         return Response({"error": "Invalid or missing token"}, status=status.HTTP_401_UNAUTHORIZED)
     return None
 
+
+def combine_pattern_color(similarities, images, top_k):
+    # Map index to score for both pattern and color
+    pattern_dict = {int(idx): float(similarities["pattern"]["scores"][i]) for i, idx in enumerate(similarities["pattern"]["indices"])}
+    color_dict = {int(idx): float(similarities["color"]["scores"][i]) for i, idx in enumerate(similarities["color"]["indices"])}
+    combined = []
+    all_indices = set(pattern_dict.keys()) | set(color_dict.keys())
+    for idx in all_indices:
+        pattern_score = pattern_dict.get(idx, 0)
+        color_score = color_dict.get(idx, 0)
+        combined_score = (pattern_score + color_score) / 2
+        img = images[int(idx)]
+        # For ImageFeature model, use .image_ref_id; for Image model, use .id or .image_id
+        combined.append({
+            "image": getattr(img, "image", None).url if hasattr(img, "image") else None,
+            "image_ref_id": getattr(img, "image_ref_id", None),
+            "company_id": img.company_id,
+            "combined_score": combined_score
+        })
+    # Sort by combined_score descending and take top_k
+    combined = sorted(combined, key=lambda x: x["combined_score"], reverse=True)[:top_k]
+    return combined
+
 @api_view(["POST"])
 def search_image_id_api_new(request):
     if "image" not in request.FILES:
@@ -119,6 +142,7 @@ def upload_image(request):
     }
     return render(request, 'cbir_app/upload_image.html', context)
 
+# --- Update search_image view ---
 @csrf_exempt
 def search_image(request):
     if request.method == "POST":
@@ -127,20 +151,16 @@ def search_image(request):
         file_path = fs.save(query_image_file.name, query_image_file)
         query_image_url = fs.url(file_path)
 
-        # Extract features from the query image
         query_features = extract_features(fs.path(file_path))
-
-        # Fetch all stored images and their features
-        images = Image.objects.all()
+        images = list(Image.objects.all())
         database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-        # Find similar images
         similarities = find_similar_images(query_features, database_features, top_k=5)
 
         pattern_results = [
             {
-                "image": images[int(idx)].image.url,  # Get image URL
-                "company_id": images[int(idx)].company_id,  # Get company name
+                "image": images[int(idx)].image.url,
+                "company_id": images[int(idx)].company_id,
                 "score": similarities["pattern"]["scores"][i]
             }
             for i, idx in enumerate(similarities["pattern"]["indices"])
@@ -155,10 +175,13 @@ def search_image(request):
             for i, idx in enumerate(similarities["color"]["indices"])
         ]
 
+        combined_results = combine_pattern_color(similarities, images, top_k=5)
+
         return render(request, 'cbir_app/search_results.html', {
             'query_image_url': query_image_url,
             'pattern_results': pattern_results,
             'color_results': color_results,
+            'combined_results': combined_results,
         })
 
     return render(request, 'cbir_app/search_image.html')
@@ -216,34 +239,47 @@ def search_image_api(request):
     if 'image' not in request.FILES:
         return Response({"error": "No query image provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Get optional parameters
-    top_k = int(request.data.get("top_k", 5))  # default to 5
-    threshold = float(request.data.get("threshold", 0.0))  # default to 0.0
+    top_k = int(request.data.get("top_k", 5))
+    threshold = float(request.data.get("threshold", 0.0))
 
-    # Save uploaded image
     query_image_file = request.FILES['image']
     fs = FileSystemStorage()
     file_path = fs.save(query_image_file.name, query_image_file)
     query_image_url = fs.url(file_path)
 
-    # Extract features
     query_features = extract_features(fs.path(file_path))
-
-    # Get all images and their features
     images = list(Image.objects.all())
     database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-    # Compute similarities
-    similarities = find_similar_images(query_features, database_features)
+    similarities = find_similar_images(query_features, database_features, top_k=top_k)
 
-    # Filter results by threshold and limit by top_k
-    pattern_results = filter_and_format_results(similarities["pattern"], images, threshold, top_k)
-    color_results = filter_and_format_results(similarities["color"], images, threshold, top_k)
+    pattern_results = [
+        {
+            "image": images[int(idx)].image.url,
+            "company_id": images[int(idx)].company_id,
+            "score": similarities["pattern"]["scores"][i]
+        }
+        for i, idx in enumerate(similarities["pattern"]["indices"])
+        if similarities["pattern"]["scores"][i] >= threshold
+    ][:top_k]
+
+    color_results = [
+        {
+            "image": images[int(idx)].image.url,
+            "company_id": images[int(idx)].company_id,
+            "score": similarities["color"]["scores"][i]
+        }
+        for i, idx in enumerate(similarities["color"]["indices"])
+        if similarities["color"]["scores"][i] >= threshold
+    ][:top_k]
+
+    combined_results = combine_pattern_color(similarities, images, top_k=top_k)
 
     return Response({
         "query_image_url": query_image_url,
         "pattern_results": pattern_results,
-        "color_results": color_results
+        "color_results": color_results,
+        "combined_results": combined_results
     }, status=status.HTTP_200_OK)
 
 def filter_and_format_results(similarity_data, images, threshold, top_k):
