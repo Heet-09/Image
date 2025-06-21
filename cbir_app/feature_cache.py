@@ -1,0 +1,28 @@
+import numpy as np
+import faiss
+from .models import ImageFeature
+
+class FeatureCache:
+    def __init__(self):
+        self.images = []
+        self.pattern_features = None
+        self.color_features = None
+        self.pattern_index = None
+        self.color_index = None
+        self.load_features()
+
+    def load_features(self):
+        all_images = list(ImageFeature.objects.all())
+        self.images = all_images
+        self.pattern_features = np.array([img.pattern_features for img in all_images], dtype=np.float32)
+        self.color_features = np.array([img.color_features for img in all_images], dtype=np.float32)
+
+        self.pattern_index = faiss.IndexFlatIP(self.pattern_features.shape[1])
+        faiss.normalize_L2(self.pattern_features)
+        self.pattern_index.add(self.pattern_features)
+
+        self.color_index = faiss.IndexFlatIP(self.color_features.shape[1])
+        faiss.normalize_L2(self.color_features)
+        self.color_index.add(self.color_features)
+
+feature_cache = FeatureCache()

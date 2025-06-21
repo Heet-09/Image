@@ -18,8 +18,7 @@ import tempfile
 from pathlib import Path
 # from .faiss_index_loader import pattern_index, color_index, image_list
 import time
-
-
+from .feature_cache import feature_cache
 
 
 
@@ -436,12 +435,130 @@ def upload_image_id_api(request):
             os.remove(temp_file_path)
 
     return Response({"message": "Images uploaded successfully", "uploaded_images": uploaded_images}, status=status.HTTP_201_CREATED)
+# @csrf_exempt
+# @api_view(["POST"])
+# def search_image_id_api(request):
+#     """
+#     API to search for similar images based on features.
+#     """
+#     # Validate token
+#     start_time = time.time()
+#     token_response = validate_token(request)
+#     if token_response:
+#         return token_response
+
+#     if "image" not in request.FILES:
+#         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+    
+#     top_k = int(request.data.get("top_k", 50))
+#     p_threshold = float(request.data.get("p_threshold", 0.0))
+#     c_threshold = float(request.data.get("c_threshold", 0.0))
+#     pattern_threshold = p_threshold / 100
+#     color_threshold = c_threshold / 100
+#     print(pattern_threshold,p_threshold,color_threshold,c_threshold)
+#     # Get company_id filter
+#     print("top_k",top_k)
+#     company_id = request.data.get("company_id")
+#     if not company_id:
+#         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Build filter kwargs
+#     filters = {"company_id": company_id}
+#     float_filters = {"filter_1", "filter_2", "filter_4"}  # filters that store float-like strings
+#     for i in range(1, 11):
+#         key = f"filter_{i}"
+#         value = request.data.get(key)
+#         if value not in [None, "", "null"]:
+#             if key in float_filters:
+#                 try:
+#                     filters[key] = str(float(value))  # normalize to '7.0'
+#                 except ValueError:
+#                     filters[key] = str(value)
+#             else:
+#                 filters[key] = str(value)  # leave as-is for filters like '26'
+
+#     print("Filters used in query:", filters)
+
+#     # Get uploaded image
+#     query_image_file = request.FILES["image"]
+#     original_extension = os.path.splitext(query_image_file.name)[-1].lower()
+
+#     valid_extensions = {'.jpg', '.jpeg', '.png'}
+#     if original_extension not in valid_extensions:
+#         return Response({"error": "Unsupported file type. Use jpg, jpeg, or png."}, status=status.HTTP_400_BAD_REQUEST)
+    
+#     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg,.jpeg,.png") as temp_file:
+#         temp_file.write(query_image_file.read())
+#         temp_file_path = temp_file.name
+
+#     try:
+# 	        # Extract features
+#         t1 = time.time()
+#         query_features = extract_features(temp_file_path)
+#         t2 = time.time()
+#         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
+#         # check time for this line 
+#         t3 = time.time()
+#         images = feature_cache.images
+
+#         t4 = time.time()
+#         print(f"Database fetch time: {t4 - t3:.3f} seconds")
+
+#         database_features = [
+#             {"pattern": img["pattern_features"], "color": img["color_features"]}
+#             for img in images
+#         ]
+
+#         if not database_features:
+#             return Response({
+#                 "message": "No images in database matching the filters.",
+#                 "pattern_results": [],
+#                 "color_results": []
+#             }, status=status.HTTP_200_OK)
+
+#         # Find similarities
+#         t5 = time.time()
+#         similarities = find_similar_images(query_features, database_features,top_k)
+#         t6 = time.time()
+#         print(f"Similarity search time: {t6 - t5:.3f} seconds")
+#         print("before function cal l")
+#         # Filter and format results
+#         t7 = time.time()
+#         pattern_results = filter_and_format_image_id_results(similarities["pattern"], images, pattern_threshold, top_k)
+#         t8 = time.time()
+#         print(f"Pattern filtering time: {t8 - t7:.3f} seconds")
+#         t9 = time.time()
+#         color_results = filter_and_format_image_id_results(similarities["color"], images, color_threshold, top_k)
+#         t10 = time.time()
+#         print(f"Color filtering time: {t10 - t9:.3f} seconds")
+#         print("After function call")
+#         total_time = time.time() - start_time
+#         print(f"Total API execution time: {total_time:.3f} seconds")
+#         return Response({
+#             "message": "Search completed.",
+#             "pattern_results": pattern_results,
+#             "color_results": color_results
+#         }, status=status.HTTP_200_OK)
+    
+#         response["Access-Control-Allow-Origin"] = "*"
+#         response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+
+#     finally:
+#         os.remove(temp_file_path)
+
+
 @csrf_exempt
 @api_view(["POST"])
 def search_image_id_api(request):
     """
     API to search for similar images based on features.
+    Uses in-memory FAISS index and cached features for speed.
     """
+    import numpy as np
+    import faiss
+    import os
+    import time
+
     # Validate token
     start_time = time.time()
     token_response = validate_token(request)
@@ -456,85 +573,74 @@ def search_image_id_api(request):
     c_threshold = float(request.data.get("c_threshold", 0.0))
     pattern_threshold = p_threshold / 100
     color_threshold = c_threshold / 100
-    print(pattern_threshold,p_threshold,color_threshold,c_threshold)
-    # Get company_id filter
-    print("top_k",top_k)
+
     company_id = request.data.get("company_id")
     if not company_id:
         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Build filter kwargs
-    filters = {"company_id": company_id}
-    float_filters = {"filter_1", "filter_2", "filter_4"}  # filters that store float-like strings
-    for i in range(1, 11):
-        key = f"filter_{i}"
-        value = request.data.get(key)
-        if value not in [None, "", "null"]:
-            if key in float_filters:
-                try:
-                    filters[key] = str(float(value))  # normalize to '7.0'
-                except ValueError:
-                    filters[key] = str(value)
-            else:
-                filters[key] = str(value)  # leave as-is for filters like '26'
-
-    print("Filters used in query:", filters)
-
     # Get uploaded image
     query_image_file = request.FILES["image"]
     original_extension = os.path.splitext(query_image_file.name)[-1].lower()
-
     valid_extensions = {'.jpg', '.jpeg', '.png'}
     if original_extension not in valid_extensions:
         return Response({"error": "Unsupported file type. Use jpg, jpeg, or png."}, status=status.HTTP_400_BAD_REQUEST)
     
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg,.jpeg,.png") as temp_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=original_extension) as temp_file:
         temp_file.write(query_image_file.read())
         temp_file_path = temp_file.name
 
     try:
-	        # Extract features
         t1 = time.time()
         query_features = extract_features(temp_file_path)
         t2 = time.time()
         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
-        # check time for this line 
-        t3 = time.time()
-        images = list(
-            ImageFeature.objects
-            .only("image_ref_id", "company_id", "pattern_features", "color_features")
-            .filter(**filters)
-            .values("image_ref_id", "company_id", "pattern_features", "color_features")
-        )
 
-        t4 = time.time()
-        print(f"Database fetch time: {t4 - t3:.3f} seconds")
+        # Prepare query vectors
+        query_pattern = np.array(query_features["pattern"]).astype("float32")
+        query_color = np.array(query_features["color"]).astype("float32")
+        faiss.normalize_L2(query_pattern.reshape(1, -1))
+        faiss.normalize_L2(query_color.reshape(1, -1))
 
-        database_features = [{"pattern": img["pattern_features"], "color": img["color_features"]} for img in images]
+        # Use cached features and FAISS indices
+        images = feature_cache.images
+        pattern_index = feature_cache.pattern_index
+        color_index = feature_cache.color_index
 
-        if not database_features:
+        if len(images) == 0:
             return Response({
                 "message": "No images in database matching the filters.",
                 "pattern_results": [],
                 "color_results": []
             }, status=status.HTTP_200_OK)
 
-        # Find similarities
-        t5 = time.time()
-        similarities = find_similar_images(query_features, database_features,top_k)
-        t6 = time.time()
-        print(f"Similarity search time: {t6 - t5:.3f} seconds")
-        print("before function cal l")
-        # Filter and format results
-        t7 = time.time()
-        pattern_results = filter_and_format_image_id_results(similarities["pattern"], images, pattern_threshold, top_k)
-        t8 = time.time()
-        print(f"Pattern filtering time: {t8 - t7:.3f} seconds")
-        t9 = time.time()
-        color_results = filter_and_format_image_id_results(similarities["color"], images, color_threshold, top_k)
-        t10 = time.time()
-        print(f"Color filtering time: {t10 - t9:.3f} seconds")
-        print("After function call")
+        # Similarity search
+        t3 = time.time()
+        pattern_scores, pattern_indices = pattern_index.search(query_pattern.reshape(1, -1), top_k)
+        color_scores, color_indices = color_index.search(query_color.reshape(1, -1), top_k)
+        t4 = time.time()
+        print(f"FAISS similarity search time: {t4 - t3:.3f} seconds")
+
+        # Format results
+        def format_results(indices, scores, threshold):
+            results = []
+            count = 0
+            for i, idx in enumerate(indices[0]):
+                score = float(scores[0][i])
+                if score >= threshold:
+                    img = images[int(idx)]
+                    results.append({
+                        "image_ref_id": img.image_ref_id,
+                        "company_id": img.company_id,
+                        "score": score
+                    })
+                    count += 1
+                if count >= top_k:
+                    break
+            return results
+
+        pattern_results = format_results(pattern_indices, pattern_scores, pattern_threshold)
+        color_results = format_results(color_indices, color_scores, color_threshold)
+
         total_time = time.time() - start_time
         print(f"Total API execution time: {total_time:.3f} seconds")
         return Response({
@@ -542,12 +648,10 @@ def search_image_id_api(request):
             "pattern_results": pattern_results,
             "color_results": color_results
         }, status=status.HTTP_200_OK)
-    
-        response["Access-Control-Allow-Origin"] = "*"
-        response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
 
     finally:
         os.remove(temp_file_path)
+
 
 def filter_and_format_image_id_results(similarity_data, images, threshold, top_k):
     print(threshold)
