@@ -815,6 +815,132 @@ def search_image_combined(request):
     return render(request, 'cbir_app/search_image_combined.html')
 
 @csrf_exempt
+# @api_view(["POST"])
+# def search_image_id_api_combined(request):
+#     """
+#     API to search for similar images based on pattern, color, and combined similarity.
+#     Uses in-memory FAISS index and cached features for speed.
+#     """
+#     feature_cache.load()
+#     import numpy as np
+#     import faiss
+#     import os
+#     import time
+#     import datetime
+
+#     # Validate token
+#     start_time = time.time()
+#     token_response = validate_token(request)
+#     if token_response:
+#         return token_response
+
+#     if "image" not in request.FILES:
+#         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+    
+#     top_k = int(request.data.get("top_k", 5))
+#     p_threshold = float(request.data.get("p_threshold", 0.0))
+#     c_threshold = float(request.data.get("c_threshold", 0.0))
+#     pattern_threshold = p_threshold / 100
+#     color_threshold = c_threshold / 100
+
+#     company_id = request.data.get("company_id")
+#     if not company_id:
+#         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+#     # Get uploaded image
+#     query_image_file = request.FILES["image"]
+#     original_extension = os.path.splitext(query_image_file.name)[-1].lower()
+#     valid_extensions = {'.jpg', '.jpeg', '.png'}
+#     if original_extension not in valid_extensions:
+#         return Response({"error": "Unsupported file type. Use jpg, jpeg, or png."}, status=status.HTTP_400_BAD_REQUEST)
+    
+#     with tempfile.NamedTemporaryFile(delete=False, suffix=original_extension) as temp_file:
+#         temp_file.write(query_image_file.read())
+#         temp_file_path = temp_file.name
+
+#     try:
+#         t1 = time.time()
+#         query_features = extract_features(temp_file_path)
+#         t2 = time.time()
+#         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
+
+#         # Prepare query vectors
+#         query_pattern = np.array(query_features["pattern"]).astype("float32")
+#         query_color = np.array(query_features["color"]).astype("float32")
+#         faiss.normalize_L2(query_pattern.reshape(1, -1))
+#         faiss.normalize_L2(query_color.reshape(1, -1))
+
+#         # Use cached features and FAISS indices
+#         images = feature_cache.images
+#         pattern_index = feature_cache.pattern_index
+#         color_index = feature_cache.color_index
+
+#         if len(images) == 0:
+#             return Response({
+#                 "message": "No images in database matching the filters.",
+#                 "pattern_results": [],
+#                 "color_results": [],
+#                 "combined_results": []
+#             }, status=status.HTTP_200_OK)
+
+#         # Similarity search
+#         t3 = time.time()
+#         pattern_scores, pattern_indices = pattern_index.search(query_pattern.reshape(1, -1), top_k)
+#         color_scores, color_indices = color_index.search(query_color.reshape(1, -1), top_k)
+#         t4 = time.time()
+#         print(f"FAISS similarity search time: {t4 - t3:.3f} seconds")
+
+#         # Format pattern and color results
+#         def format_results(indices, scores, threshold):
+#             results = []
+#             count = 0
+#             for i, idx in enumerate(indices[0]):
+#                 score = float(scores[0][i])
+#                 if score >= threshold:
+#                     img = images[int(idx)]
+#                     results.append({
+#                         "image_ref_id": getattr(img, "image_ref_id", None),
+#                         "company_id": img.company_id,
+#                         "score": score
+#                     })
+#                     count += 1
+#                 if count >= top_k:
+#                     break
+#             return results
+
+#         pattern_results = format_results(pattern_indices, pattern_scores, pattern_threshold)
+#         color_results = format_results(color_indices, color_scores, color_threshold)
+
+#         # Combine pattern and color scores (average)
+#         pattern_dict = {int(idx): float(pattern_scores[0][i]) for i, idx in enumerate(pattern_indices[0])}
+#         color_dict = {int(idx): float(color_scores[0][i]) for i, idx in enumerate(color_indices[0])}
+#         combined = []
+#         all_indices = set(pattern_dict.keys()) | set(color_dict.keys())
+#         for idx in all_indices:
+#             pattern_score = pattern_dict.get(idx, 0)
+#             color_score = color_dict.get(idx, 0)
+#             combined_score = (pattern_score + color_score) / 2
+#             img = images[int(idx)]
+#             combined.append({
+#                 "image_ref_id": getattr(img, "image_ref_id", None),
+#                 "company_id": img.company_id,
+#                 "combined_score": combined_score
+#             })
+#         combined_results = sorted(combined, key=lambda x: x["combined_score"], reverse=True)[:top_k]
+
+#         total_time = time.time() - start_time
+#         print(f"Total API execution time: {total_time:.3f} seconds")
+#         return Response({
+#             "message": "Combined search completed.",
+#             "pattern_results": pattern_results,
+#             "color_results": color_results,
+#             "combined_results": combined_results
+#         }, status=status.HTTP_200_OK)
+
+#     finally:
+#         os.remove(temp_file_path)
+
+@csrf_exempt
 @api_view(["POST"])
 def search_image_id_api_combined(request):
     """
@@ -846,6 +972,14 @@ def search_image_id_api_combined(request):
     company_id = request.data.get("company_id")
     if not company_id:
         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # New: Get which results to return (default to 1)
+    return_pattern = int(request.data.get("return_pattern", 1))
+    print("return_pattern", return_pattern)
+    return_color = int(request.data.get("return_color", 1))
+    print("return_color", return_color)
+    return_combined = int(request.data.get("return_combined", 1))
+    print("return_combined", return_combined)
 
     # Get uploaded image
     query_image_file = request.FILES["image"]
@@ -930,12 +1064,20 @@ def search_image_id_api_combined(request):
 
         total_time = time.time() - start_time
         print(f"Total API execution time: {total_time:.3f} seconds")
-        return Response({
+
+        # Build response based on parameters
+        response_data = {
             "message": "Combined search completed.",
-            "pattern_results": pattern_results,
-            "color_results": color_results,
-            "combined_results": combined_results
-        }, status=status.HTTP_200_OK)
+            "timestamp": datetime.datetime.now().isoformat(),
+        }
+        if return_pattern:
+            response_data["pattern_results"] = pattern_results
+        if return_color:
+            response_data["color_results"] = color_results
+        if return_combined:
+            response_data["combined_results"] = combined_results
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     finally:
         os.remove(temp_file_path)
