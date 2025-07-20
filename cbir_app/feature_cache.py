@@ -20,7 +20,15 @@ class FeatureCache:
         self.pattern_features = np.array([img.pattern_features for img in all_images], dtype=np.float32)
         self.color_features = np.array([img.color_features for img in all_images], dtype=np.float32)
 
-        self.pattern_index = faiss.IndexFlatIP(self.pattern_features.shape[1])
+        if self.pattern_features is None or len(self.pattern_features.shape) < 2:
+            raise ValueError(f"pattern_features is not loaded correctly. Shape: {getattr(self.pattern_features, 'shape', None)}")
+
+        if self.pattern_features is not None and self.pattern_features.shape and len(self.pattern_features.shape) > 1:
+            self.pattern_index = faiss.IndexFlatIP(self.pattern_features.shape[1])
+        else:
+            # Handle the error, e.g. log and raise a meaningful exception
+            raise ValueError("pattern_features is empty or not loaded correctly")
+
         faiss.normalize_L2(self.pattern_features)
         self.pattern_index.add(self.pattern_features)
 
