@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Combined Pattern+Color Results</title>
+</head>
+<body>
+    <h2>Combined Pattern+Color Similarity Results</h2>
+    {% if query_image_url %}
+        <h3>Query Image:</h3>
+        <img src="{{ query_image_url }}" width="200">
+    {% endif %}
+    <h3>Top Matches:</h3>
+    <table border="1">
+        <tr>
+            <th>Image</th>
+            <th>Company ID</th>
+            <th>Combined Score</th>
+        </tr>
+        {% for result in combined_results %}
+        <tr>
+            <td><img src="{{ result.image }}" width="100"></td>
+            <td>{{ result.company_id }}</td>
+            <td>{{ result.combined_score|floatformat:3 }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <br>
+    <a href="{% url 'search_image_combined' %}">Search Again</a>
+</body>
+</html>

@@ -15,5 +15,7 @@ urlpatterns = [
     path('cbir/upload/id/api/',upload_image_id_api, name='upload_image_id_api'),
     path('cbir/search/id/api/',search_image_id_api, name='search_image_id_api'),
     path('upload_assets/', upload_assets, name='upload_assets'),
+    path('search/combined/', search_image_combined, name='search_image_combined'),
+    path('cbir/search/id/api/combined/', search_image_id_api_combined, name='search_image_id_api_combined'),
 ]
 

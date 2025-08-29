@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Combined Pattern+Color Image Search</title>
+</head>
+<body>
+    <h2>Search by Image (Pattern + Color)</h2>
+    {% if error %}
+        <p style="color:red;">{{ error }}</p>
+    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="image" required>
+        <button type="submit">Search</button>
+    </form>
+    {% if query_image_url %}
+        <h3>Query Image:</h3>
+        <img src="{{ query_image_url }}" width="200">
+    {% endif %}
+</body>
+</html>
