@@ -15,8 +15,21 @@ class FeatureCache:
         if self._loaded:
             return
 
+        print("Loading feature cache...")
+        import time
+        start_time = time.time()
+        
         all_images = list(ImageFeature.objects.all())
         self.images = all_images
+        
+        if len(all_images) == 0:
+            self.pattern_features = np.array([], dtype=np.float32).reshape(0, 2048)
+            self.color_features = np.array([], dtype=np.float32).reshape(0, 512)
+            self.pattern_index = faiss.IndexFlatIP(2048)
+            self.color_index = faiss.IndexFlatIP(512)
+            self._loaded = True
+            return
+            
         self.pattern_features = np.array([img.pattern_features for img in all_images], dtype=np.float32)
         self.color_features = np.array([img.color_features for img in all_images], dtype=np.float32)
 
@@ -29,6 +42,8 @@ class FeatureCache:
         self.color_index.add(self.color_features)
 
         self._loaded = True
+        load_time = time.time() - start_time
+        print(f"Feature cache loaded in {load_time:.3f} seconds with {len(all_images)} images")
 
 # Instantiate it without loading immediately
 feature_cache = FeatureCache()

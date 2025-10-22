@@ -4,7 +4,7 @@
 from django.db import IntegrityError
 from django.shortcuts import render, redirect
 from .models import Image,ImageFeature
-from .utils import extract_features, find_similar_images
+# from .utils import extract_features, find_similar_images
 from django.core.files.storage import FileSystemStorage
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -18,7 +18,12 @@ import tempfile
 from pathlib import Path
 # from .faiss_index_loader import pattern_index, color_index, image_list
 import time
+# Pre-load feature cache at module import
 from .feature_cache import feature_cache
+feature_cache.load()  # Load once at startup
+# # from .utils import extract_features, find_similar_images_with_chi_square, find_similar_images_weighted
+# from .utils import extract_features, find_similar_images_safe
+from .utils import *
 
 
 
@@ -104,30 +109,35 @@ def search_image_id_api_new(request):
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+############################### FOR IMAGE #################################
+
+########### WEB PAGE ##################
+
 def upload_image(request):
     if request.method == "POST" and request.FILES.getlist('images'):
         try:
             company_id = int(request.POST.get("company_id").strip())
         except (TypeError, ValueError):
             return render(request, "cbir_app/upload_image.html", {"error": "Valid company ID is required."})
-        
+                
         filters = {}
         for i in range(1, 11):
             filters[f'filter_{i}'] = request.POST.get(f'filter_{i}', '').strip()
-
+        
         # Define folder path based on company name
         company_folder = os.path.join(settings.MEDIA_ROOT, 'img', str(company_id))
         os.makedirs(company_folder, exist_ok=True)
-
+        
         fs = FileSystemStorage(location=company_folder)
-
+        
         for image_file in request.FILES.getlist('images'):
             filename = fs.save(image_file.name, image_file)
-            file_url = os.path.join('img', str(company_id), filename)# Store relative path
-
-            # Extract features
+            file_url = os.path.join('img', str(company_id), filename)  # Store relative path
+            
+            # Extract features using ENHANCED method
             feature_data = extract_features(fs.path(filename))
-
+            
             # Save image details
             Image.objects.create(
                 company_id=company_id,
@@ -136,29 +146,30 @@ def upload_image(request):
                 color_features=feature_data["color"],
                 **filters
             )
-
+        
         return redirect('upload_image')
+    
     context = {
         'range_10': range(1, 11)
     }
     return render(request, 'cbir_app/upload_image.html', context)
 
-# --- Update search_image view ---
 @csrf_exempt
 def search_image(request):
-    feature_cache.load()
     if request.method == "POST":
         query_image_file = request.FILES['image']
         fs = FileSystemStorage()
         file_path = fs.save(query_image_file.name, query_image_file)
         query_image_url = fs.url(file_path)
-
+        
+        # Extract features using ENHANCED method
         query_features = extract_features(fs.path(file_path))
         images = list(Image.objects.all())
         database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
-
-        similarities = find_similar_images(query_features, database_features, top_k=5)
-
+        
+        # Use the SAFE method that handles dimension mismatches
+        similarities = find_similar_images_safe(query_features, database_features, top_k=5)
+        
         pattern_results = [
             {
                 "image": images[int(idx)].image.url,
@@ -167,7 +178,7 @@ def search_image(request):
             }
             for i, idx in enumerate(similarities["pattern"]["indices"])
         ]
-
+        
         color_results = [
             {
                 "image": images[int(idx)].image.url,
@@ -176,17 +187,22 @@ def search_image(request):
             }
             for i, idx in enumerate(similarities["color"]["indices"])
         ]
-
-        combined_results = combine_pattern_color(similarities, images, top_k=5)
-
+        
+        # # Clean up temporary file
+        # try:
+        #     os.remove(fs.path(file_path))
+        # except:
+        #     pass
+        
         return render(request, 'cbir_app/search_results.html', {
             'query_image_url': query_image_url,
             'pattern_results': pattern_results,
             'color_results': color_results,
-            'combined_results': combined_results,
         })
-
+    
     return render(request, 'cbir_app/search_image.html')
+
+############ API #######################
 
 @api_view(['POST'])
 def upload_image_api(request):
@@ -215,7 +231,7 @@ def upload_image_api(request):
         filename = fs.save(image_file.name, image_file)
         file_url = os.path.join('img', str(company_id), filename)
 
-        feature_data = extract_features(fs.path(filename))
+        feature_data = extract_features_color(fs.path(filename))
 
         image_record = Image.objects.create(
             company_id=company_id,
@@ -250,11 +266,11 @@ def search_image_api(request):
     file_path = fs.save(query_image_file.name, query_image_file)
     query_image_url = fs.url(file_path)
 
-    query_features = extract_features(fs.path(file_path))
+    query_features = extract_features_color(fs.path(file_path))
     images = list(Image.objects.all())
     database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-    similarities = find_similar_images(query_features, database_features, top_k=top_k)
+    similarities = find_similar_images_color(query_features, database_features, top_k=top_k)
 
     pattern_results = [
         {
@@ -300,11 +316,10 @@ def filter_and_format_results(similarity_data, images, threshold, top_k):
         if count >= top_k:
             break
     return results
-# ################### for id ####################
-###################################################
-#############################################
 
+################################ FOR ID #############################################
 
+########### WEB PAGE ##################
 def upload_image_id(request):
     """
     View to upload an image, extract features, and store metadata in the database.
@@ -414,7 +429,7 @@ def search_image_id(request):
     
     return render(request, "cbir_app/search_image_id.html")
 
-
+############ API #######################
 @api_view(["POST"])
 def upload_image_id_api(request):
     """
@@ -475,117 +490,6 @@ def upload_image_id_api(request):
             os.remove(temp_file_path)
 
     return Response({"message": "Images uploaded successfully", "uploaded_images": uploaded_images}, status=status.HTTP_201_CREATED)
-# @csrf_exempt
-# @api_view(["POST"])
-# def search_image_id_api(request):
-#     """
-#     API to search for similar images based on features.
-#     """
-#     # Validate token
-#     start_time = time.time()
-#     token_response = validate_token(request)
-#     if token_response:
-#         return token_response
-
-#     if "image" not in request.FILES:
-#         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     top_k = int(request.data.get("top_k", 50))
-#     p_threshold = float(request.data.get("p_threshold", 0.0))
-#     c_threshold = float(request.data.get("c_threshold", 0.0))
-#     pattern_threshold = p_threshold / 100
-#     color_threshold = c_threshold / 100
-#     print(pattern_threshold,p_threshold,color_threshold,c_threshold)
-#     # Get company_id filter
-#     print("top_k",top_k)
-#     company_id = request.data.get("company_id")
-#     if not company_id:
-#         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
-
-#     # Build filter kwargs
-#     filters = {"company_id": company_id}
-#     float_filters = {"filter_1", "filter_2", "filter_4"}  # filters that store float-like strings
-#     for i in range(1, 11):
-#         key = f"filter_{i}"
-#         value = request.data.get(key)
-#         if value not in [None, "", "null"]:
-#             if key in float_filters:
-#                 try:
-#                     filters[key] = str(float(value))  # normalize to '7.0'
-#                 except ValueError:
-#                     filters[key] = str(value)
-#             else:
-#                 filters[key] = str(value)  # leave as-is for filters like '26'
-
-#     print("Filters used in query:", filters)
-
-#     # Get uploaded image
-#     query_image_file = request.FILES["image"]
-#     original_extension = os.path.splitext(query_image_file.name)[-1].lower()
-
-#     valid_extensions = {'.jpg', '.jpeg', '.png'}
-#     if original_extension not in valid_extensions:
-#         return Response({"error": "Unsupported file type. Use jpg, jpeg, or png."}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg,.jpeg,.png") as temp_file:
-#         temp_file.write(query_image_file.read())
-#         temp_file_path = temp_file.name
-
-#     try:
-# 	        # Extract features
-#         t1 = time.time()
-#         query_features = extract_features(temp_file_path)
-#         t2 = time.time()
-#         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
-#         # check time for this line 
-#         t3 = time.time()
-#         images = feature_cache.images
-
-#         t4 = time.time()
-#         print(f"Database fetch time: {t4 - t3:.3f} seconds")
-
-#         database_features = [
-#             {"pattern": img["pattern_features"], "color": img["color_features"]}
-#             for img in images
-#         ]
-
-#         if not database_features:
-#             return Response({
-#                 "message": "No images in database matching the filters.",
-#                 "pattern_results": [],
-#                 "color_results": []
-#             }, status=status.HTTP_200_OK)
-
-#         # Find similarities
-#         t5 = time.time()
-#         similarities = find_similar_images(query_features, database_features,top_k)
-#         t6 = time.time()
-#         print(f"Similarity search time: {t6 - t5:.3f} seconds")
-#         print("before function cal l")
-#         # Filter and format results
-#         t7 = time.time()
-#         pattern_results = filter_and_format_image_id_results(similarities["pattern"], images, pattern_threshold, top_k)
-#         t8 = time.time()
-#         print(f"Pattern filtering time: {t8 - t7:.3f} seconds")
-#         t9 = time.time()
-#         color_results = filter_and_format_image_id_results(similarities["color"], images, color_threshold, top_k)
-#         t10 = time.time()
-#         print(f"Color filtering time: {t10 - t9:.3f} seconds")
-#         print("After function call")
-#         total_time = time.time() - start_time
-#         print(f"Total API execution time: {total_time:.3f} seconds")
-#         return Response({
-#             "message": "Search completed.",
-#             "pattern_results": pattern_results,
-#             "color_results": color_results
-#         }, status=status.HTTP_200_OK)
-    
-#         response["Access-Control-Allow-Origin"] = "*"
-#         response["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-
-#     finally:
-#         os.remove(temp_file_path)
-
 
 @csrf_exempt
 @api_view(["POST"])
@@ -693,7 +597,6 @@ def search_image_id_api(request):
     finally:
         os.remove(temp_file_path)
 
-
 def filter_and_format_image_id_results(similarity_data, images, threshold, top_k):
     print(threshold)
     print("hello")
@@ -713,10 +616,7 @@ def filter_and_format_image_id_results(similarity_data, images, threshold, top_k
             break
     return results
 
-
-
-
-################Upload Image API######################
+########################### UPLOAD BULK IMAGE API ################################
 def upload_assets(request):
     if request.method == "POST":
         excel_file = request.FILES.get("excel_file")
@@ -814,131 +714,6 @@ def search_image_combined(request):
 
     return render(request, 'cbir_app/search_image_combined.html')
 
-@csrf_exempt
-# @api_view(["POST"])
-# def search_image_id_api_combined(request):
-#     """
-#     API to search for similar images based on pattern, color, and combined similarity.
-#     Uses in-memory FAISS index and cached features for speed.
-#     """
-#     feature_cache.load()
-#     import numpy as np
-#     import faiss
-#     import os
-#     import time
-#     import datetime
-
-#     # Validate token
-#     start_time = time.time()
-#     token_response = validate_token(request)
-#     if token_response:
-#         return token_response
-
-#     if "image" not in request.FILES:
-#         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     top_k = int(request.data.get("top_k", 5))
-#     p_threshold = float(request.data.get("p_threshold", 0.0))
-#     c_threshold = float(request.data.get("c_threshold", 0.0))
-#     pattern_threshold = p_threshold / 100
-#     color_threshold = c_threshold / 100
-
-#     company_id = request.data.get("company_id")
-#     if not company_id:
-#         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
-
-#     # Get uploaded image
-#     query_image_file = request.FILES["image"]
-#     original_extension = os.path.splitext(query_image_file.name)[-1].lower()
-#     valid_extensions = {'.jpg', '.jpeg', '.png'}
-#     if original_extension not in valid_extensions:
-#         return Response({"error": "Unsupported file type. Use jpg, jpeg, or png."}, status=status.HTTP_400_BAD_REQUEST)
-    
-#     with tempfile.NamedTemporaryFile(delete=False, suffix=original_extension) as temp_file:
-#         temp_file.write(query_image_file.read())
-#         temp_file_path = temp_file.name
-
-#     try:
-#         t1 = time.time()
-#         query_features = extract_features(temp_file_path)
-#         t2 = time.time()
-#         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
-
-#         # Prepare query vectors
-#         query_pattern = np.array(query_features["pattern"]).astype("float32")
-#         query_color = np.array(query_features["color"]).astype("float32")
-#         faiss.normalize_L2(query_pattern.reshape(1, -1))
-#         faiss.normalize_L2(query_color.reshape(1, -1))
-
-#         # Use cached features and FAISS indices
-#         images = feature_cache.images
-#         pattern_index = feature_cache.pattern_index
-#         color_index = feature_cache.color_index
-
-#         if len(images) == 0:
-#             return Response({
-#                 "message": "No images in database matching the filters.",
-#                 "pattern_results": [],
-#                 "color_results": [],
-#                 "combined_results": []
-#             }, status=status.HTTP_200_OK)
-
-#         # Similarity search
-#         t3 = time.time()
-#         pattern_scores, pattern_indices = pattern_index.search(query_pattern.reshape(1, -1), top_k)
-#         color_scores, color_indices = color_index.search(query_color.reshape(1, -1), top_k)
-#         t4 = time.time()
-#         print(f"FAISS similarity search time: {t4 - t3:.3f} seconds")
-
-#         # Format pattern and color results
-#         def format_results(indices, scores, threshold):
-#             results = []
-#             count = 0
-#             for i, idx in enumerate(indices[0]):
-#                 score = float(scores[0][i])
-#                 if score >= threshold:
-#                     img = images[int(idx)]
-#                     results.append({
-#                         "image_ref_id": getattr(img, "image_ref_id", None),
-#                         "company_id": img.company_id,
-#                         "score": score
-#                     })
-#                     count += 1
-#                 if count >= top_k:
-#                     break
-#             return results
-
-#         pattern_results = format_results(pattern_indices, pattern_scores, pattern_threshold)
-#         color_results = format_results(color_indices, color_scores, color_threshold)
-
-#         # Combine pattern and color scores (average)
-#         pattern_dict = {int(idx): float(pattern_scores[0][i]) for i, idx in enumerate(pattern_indices[0])}
-#         color_dict = {int(idx): float(color_scores[0][i]) for i, idx in enumerate(color_indices[0])}
-#         combined = []
-#         all_indices = set(pattern_dict.keys()) | set(color_dict.keys())
-#         for idx in all_indices:
-#             pattern_score = pattern_dict.get(idx, 0)
-#             color_score = color_dict.get(idx, 0)
-#             combined_score = (pattern_score + color_score) / 2
-#             img = images[int(idx)]
-#             combined.append({
-#                 "image_ref_id": getattr(img, "image_ref_id", None),
-#                 "company_id": img.company_id,
-#                 "combined_score": combined_score
-#             })
-#         combined_results = sorted(combined, key=lambda x: x["combined_score"], reverse=True)[:top_k]
-
-#         total_time = time.time() - start_time
-#         print(f"Total API execution time: {total_time:.3f} seconds")
-#         return Response({
-#             "message": "Combined search completed.",
-#             "pattern_results": pattern_results,
-#             "color_results": color_results,
-#             "combined_results": combined_results
-#         }, status=status.HTTP_200_OK)
-
-#     finally:
-#         os.remove(temp_file_path)
 
 @csrf_exempt
 @api_view(["POST"])
@@ -947,7 +722,7 @@ def search_image_id_api_combined(request):
     API to search for similar images based on pattern, color, and combined similarity.
     Uses in-memory FAISS index and cached features for speed.
     """
-    feature_cache.load()
+    # Feature cache is pre-loaded at startup
     import numpy as np
     import faiss
     import os
@@ -963,9 +738,9 @@ def search_image_id_api_combined(request):
     if "image" not in request.FILES:
         return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
     
-    top_k = int(request.data.get("top_k", 5))
-    p_threshold = float(request.data.get("p_threshold", 0.0))
-    c_threshold = float(request.data.get("c_threshold", 0.0))
+    top_k = int(request.data.get("top_k") or 5)
+    p_threshold = float(request.data.get("p_threshold") or 0.0)
+    c_threshold = float(request.data.get("c_threshold") or 0.0)
     pattern_threshold = p_threshold / 100
     color_threshold = c_threshold / 100
 
@@ -974,11 +749,11 @@ def search_image_id_api_combined(request):
         return Response({"error": "Missing company_id"}, status=status.HTTP_400_BAD_REQUEST)
 
     # New: Get which results to return (default to 1)
-    return_pattern = int(request.data.get("return_pattern", 1))
+    return_pattern = int(request.data.get("return_pattern") or 1)
     print("return_pattern", return_pattern)
-    return_color = int(request.data.get("return_color", 1))
+    return_color = int(request.data.get("return_color") or 1)
     print("return_color", return_color)
-    return_combined = int(request.data.get("return_combined", 1))
+    return_combined = int(request.data.get("return_combined") or 1)
     print("return_combined", return_combined)
 
     # Get uploaded image
@@ -997,6 +772,10 @@ def search_image_id_api_combined(request):
         query_features = extract_features(temp_file_path)
         t2 = time.time()
         print(f"Feature extraction time: {t2 - t1:.3f} seconds")
+        # Add after line 774 in views.py
+        if not feature_cache._loaded:
+            print("WARNING: Feature cache not loaded!")
+            return Response({"error": "Feature cache not initialized"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Prepare query vectors
         query_pattern = np.array(query_features["pattern"]).astype("float32")
@@ -1081,3 +860,5 @@ def search_image_id_api_combined(request):
 
     finally:
         os.remove(temp_file_path)
+
+        
