@@ -7,6 +7,8 @@ requests
 django-cors-headers
 django-rest-framework
 django-filter
-tensorflow
-opnecv-python
+tensorflow-cpu
+opencv-python
 faiss_cpu
+pymysql
+cryptography

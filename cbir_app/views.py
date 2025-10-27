@@ -13,6 +13,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.conf import settings
 from django.http import JsonResponse
+from django.db.utils import OperationalError
+from django.db import connection
 import os
 import tempfile
 from pathlib import Path
@@ -20,11 +22,18 @@ from pathlib import Path
 import time
 # Pre-load feature cache at module import
 from .feature_cache import feature_cache
-feature_cache.load()  # Load once at startup
+# feature_cache.load()  # Load once at startu/p
 # # from .utils import extract_features, find_similar_images_with_chi_square, find_similar_images_weighted
 # from .utils import extract_features, find_similar_images_safe
 from .utils import *
 
+try:
+    # Only try loading if table exists
+    if 'cbir_app_imagefeature' in connection.introspection.table_names():
+        feature_cache.load()
+except OperationalError:
+    # Tables are not ready yet (migrate not run)
+    pass
 
 
 

@@ -82,12 +82,12 @@ pymysql.install_as_MySQLdb()
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',  # or use 'django.db.backends.mysql' for mysqlclient
-        'NAME': 'image',
-        'USER': 'root',
-        'PASSWORD': 'Phy$ics56',
-        'HOST': '127.0.0.1',
-        'PORT': '3306',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('MYSQL_DATABASE', 'cbir_db'),
+        'USER': os.environ.get('MYSQL_USER', 'user'),
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD', 'password'),
+        'HOST': os.environ.get('MYSQL_HOST', 'db'),
+        'PORT': os.environ.get('MYSQL_PORT', '3306'),
     }
 }
 
