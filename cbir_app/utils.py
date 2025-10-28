@@ -9,14 +9,24 @@ import faiss
 import time
 
 
-# Load ResNet50 model once at startup
+# Lazy-load ResNet50 model to avoid blocking startup
 import tensorflow as tf
 # Configure TensorFlow for better performance
 tf.config.optimizer.set_jit(True)  # Enable XLA compilation
 tf.config.threading.set_intra_op_parallelism_threads(0)  # Use all available cores
 tf.config.threading.set_inter_op_parallelism_threads(0)
 
-pattern_model = ResNet50(weights="imagenet", include_top=False, pooling="avg")
+# Global variable to cache the model
+_pattern_model = None
+
+def get_pattern_model():
+    """Lazy-load the ResNet50 model on first use."""
+    global _pattern_model
+    if _pattern_model is None:
+        print("Loading ResNet50 model...")
+        _pattern_model = ResNet50(weights="imagenet", include_top=False, pooling="avg")
+        print("ResNet50 model loaded successfully")
+    return _pattern_model
 
 def extract_features_color(image_path):
     """
@@ -29,6 +39,7 @@ def extract_features_color(image_path):
     img_array = preprocess_input(img_array)
 
     # Extract pattern features (unchanged - working well)
+    pattern_model = get_pattern_model()
     pattern_features = pattern_model.predict(img_array).flatten()
 
     # IMPROVED COLOR FEATURES
@@ -226,6 +237,7 @@ def extract_features(image_path):
     img_array = preprocess_input(img_array)
 
     # Extract pattern features
+    pattern_model = get_pattern_model()
     pattern_features = pattern_model.predict(img_array).flatten()
 
     # Extract color features
