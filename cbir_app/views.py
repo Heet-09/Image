@@ -53,71 +53,52 @@ def validate_token(request):
 
 
 def combine_pattern_color(similarities, images, top_k):
-    # Map index to score for both pattern and color
-    pattern_dict = {int(idx): float(similarities["pattern"]["scores"][i]) for i, idx in enumerate(similarities["pattern"]["indices"])}
-    color_dict = {int(idx): float(similarities["color"]["scores"][i]) for i, idx in enumerate(similarities["color"]["indices"])}
+    # Safely map index to score for both pattern and color
+    pattern_dict = {}
+    if "indices" in similarities["pattern"] and "scores" in similarities["pattern"]:
+        pattern_indices = similarities["pattern"]["indices"]
+        pattern_scores = similarities["pattern"]["scores"]
+        for i, idx in enumerate(pattern_indices):
+            try:
+                idx_int = int(idx)
+                if 0 <= idx_int < len(images) and i < len(pattern_scores):
+                    pattern_dict[idx_int] = float(pattern_scores[i])
+            except (ValueError, IndexError, TypeError):
+                continue
+    
+    color_dict = {}
+    if "indices" in similarities["color"] and "scores" in similarities["color"]:
+        color_indices = similarities["color"]["indices"]
+        color_scores = similarities["color"]["scores"]
+        for i, idx in enumerate(color_indices):
+            try:
+                idx_int = int(idx)
+                if 0 <= idx_int < len(images) and i < len(color_scores):
+                    color_dict[idx_int] = float(color_scores[i])
+            except (ValueError, IndexError, TypeError):
+                continue
+    
     combined = []
     all_indices = set(pattern_dict.keys()) | set(color_dict.keys())
     for idx in all_indices:
-        pattern_score = pattern_dict.get(idx, 0)
-        color_score = color_dict.get(idx, 0)
-        combined_score = (pattern_score + color_score) / 2
-        img = images[int(idx)]
-        # For ImageFeature model, use .image_ref_id; for Image model, use .id or .image_id
-        combined.append({
-            "image": getattr(img, "image", None).url if hasattr(img, "image") else None,
-            "image_ref_id": getattr(img, "image_ref_id", None),
-            "company_id": img.company_id,
-            "combined_score": combined_score
-        })
+        try:
+            pattern_score = pattern_dict.get(idx, 0)
+            color_score = color_dict.get(idx, 0)
+            combined_score = (pattern_score + color_score) / 2
+            img = images[int(idx)]
+            # For ImageFeature model, use .image_ref_id; for Image model, use .id or .image_id
+            combined.append({
+                "image": getattr(img, "image", None).url if hasattr(img, "image") else None,
+                "image_ref_id": getattr(img, "image_ref_id", None),
+                "company_id": img.company_id,
+                "combined_score": combined_score
+            })
+        except (ValueError, IndexError, TypeError) as e:
+            print(f"Error combining scores for index {idx}: {e}")
+            continue
     # Sort by combined_score descending and take top_k
     combined = sorted(combined, key=lambda x: x["combined_score"], reverse=True)[:top_k]
     return combined
-
-@api_view(["POST"])
-def search_image_id_api_new(request):
-    if "image" not in request.FILES:
-        return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-    # Save uploaded file temporarily
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-        temp_file.write(request.FILES["image"].read())
-        temp_file_path = temp_file.name
-
-    try:
-        query_features = extract_features(temp_file_path)
-        os.remove(temp_file_path)  # Clean up file
-
-        query_pattern = np.array(query_features["pattern"]).astype("float32")
-        query_color = np.array(query_features["color"]).astype("float32")
-
-        faiss.normalize_L2(query_pattern.reshape(1, -1))
-        faiss.normalize_L2(query_color.reshape(1, -1))
-
-        top_k = int(request.data.get("top_k", 5))
-        pattern_scores, pattern_indices = pattern_index.search(query_pattern.reshape(1, -1), top_k)
-        color_scores, color_indices = color_index.search(query_color.reshape(1, -1), top_k)
-
-        def format_results(indices, scores):
-            results = []
-            for i, idx in enumerate(indices[0]):
-                image_data = image_list[idx]
-                results.append({
-                    "image_ref_id": image_data["image_ref_id"],
-                    "company_id": image_data["company_id"],
-                    "score": float(scores[0][i])
-                })
-            return results
-
-        return Response({
-            "message": "Search completed.",
-            "pattern_results": format_results(pattern_indices, pattern_scores),
-            "color_results": format_results(color_indices, color_scores)
-        })
-
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 ############################### FOR IMAGE #################################
 
@@ -176,26 +157,52 @@ def search_image(request):
         images = list(Image.objects.all())
         database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
         
+        # Check if database has images
+        if not images:
+            return render(request, 'cbir_app/search_results.html', {
+                'query_image_url': query_image_url,
+                'pattern_results': [],
+                'color_results': [],
+            })
+        
         # Use the SAFE method that handles dimension mismatches
         similarities = find_similar_images_safe(query_features, database_features, top_k=5)
         
-        pattern_results = [
-            {
-                "image": images[int(idx)].image.url,
-                "company_id": images[int(idx)].company_id,
-                "score": similarities["pattern"]["scores"][i]
-            }
-            for i, idx in enumerate(similarities["pattern"]["indices"])
-        ]
+        # Safely extract pattern results
+        pattern_results = []
+        if "indices" in similarities["pattern"] and "scores" in similarities["pattern"]:
+            pattern_indices = similarities["pattern"]["indices"]
+            pattern_scores = similarities["pattern"]["scores"]
+            for i, idx in enumerate(pattern_indices):
+                try:
+                    idx_int = int(idx)
+                    if 0 <= idx_int < len(images) and i < len(pattern_scores):
+                        pattern_results.append({
+                            "image": images[idx_int].image.url,
+                            "company_id": images[idx_int].company_id,
+                            "score": float(pattern_scores[i])
+                        })
+                except (ValueError, IndexError, TypeError) as e:
+                    print(f"Error processing pattern result: {e}")
+                    continue
         
-        color_results = [
-            {
-                "image": images[int(idx)].image.url,
-                "company_id": images[int(idx)].company_id,
-                "score": similarities["color"]["scores"][i]
-            }
-            for i, idx in enumerate(similarities["color"]["indices"])
-        ]
+        # Safely extract color results
+        color_results = []
+        if "indices" in similarities["color"] and "scores" in similarities["color"]:
+            color_indices = similarities["color"]["indices"]
+            color_scores = similarities["color"]["scores"]
+            for i, idx in enumerate(color_indices):
+                try:
+                    idx_int = int(idx)
+                    if 0 <= idx_int < len(images) and i < len(color_scores):
+                        color_results.append({
+                            "image": images[idx_int].image.url,
+                            "company_id": images[idx_int].company_id,
+                            "score": float(color_scores[i])
+                        })
+                except (ValueError, IndexError, TypeError) as e:
+                    print(f"Error processing color result: {e}")
+                    continue
         
         # # Clean up temporary file
         # try:
@@ -279,27 +286,59 @@ def search_image_api(request):
     images = list(Image.objects.all())
     database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
-    similarities = find_similar_images_color(query_features, database_features, top_k=top_k)
+    if not images:
+        return Response({
+            "query_image_url": query_image_url,
+            "pattern_results": [],
+            "color_results": [],
+            "combined_results": []
+        }, status=status.HTTP_200_OK)
 
-    pattern_results = [
-        {
-            "image": images[int(idx)].image.url,
-            "company_id": images[int(idx)].company_id,
-            "score": similarities["pattern"]["scores"][i]
-        }
-        for i, idx in enumerate(similarities["pattern"]["indices"])
-        if similarities["pattern"]["scores"][i] >= threshold
-    ][:top_k]
+    similarities = find_similar_images_safe(query_features, database_features, top_k=top_k)
 
-    color_results = [
-        {
-            "image": images[int(idx)].image.url,
-            "company_id": images[int(idx)].company_id,
-            "score": similarities["color"]["scores"][i]
-        }
-        for i, idx in enumerate(similarities["color"]["indices"])
-        if similarities["color"]["scores"][i] >= threshold
-    ][:top_k]
+    # Safely extract pattern results
+    pattern_results = []
+    if "indices" in similarities["pattern"] and "scores" in similarities["pattern"]:
+        pattern_indices = similarities["pattern"]["indices"]
+        pattern_scores = similarities["pattern"]["scores"]
+        for i, idx in enumerate(pattern_indices):
+            try:
+                idx_int = int(idx)
+                if 0 <= idx_int < len(images) and i < len(pattern_scores):
+                    score = float(pattern_scores[i])
+                    if score >= threshold:
+                        pattern_results.append({
+                            "image": images[idx_int].image.url,
+                            "company_id": images[idx_int].company_id,
+                            "score": score
+                        })
+                    if len(pattern_results) >= top_k:
+                        break
+            except (ValueError, IndexError, TypeError) as e:
+                print(f"Error processing pattern result: {e}")
+                continue
+
+    # Safely extract color results
+    color_results = []
+    if "indices" in similarities["color"] and "scores" in similarities["color"]:
+        color_indices = similarities["color"]["indices"]
+        color_scores = similarities["color"]["scores"]
+        for i, idx in enumerate(color_indices):
+            try:
+                idx_int = int(idx)
+                if 0 <= idx_int < len(images) and i < len(color_scores):
+                    score = float(color_scores[i])
+                    if score >= threshold:
+                        color_results.append({
+                            "image": images[idx_int].image.url,
+                            "company_id": images[idx_int].company_id,
+                            "score": score
+                        })
+                    if len(color_results) >= top_k:
+                        break
+            except (ValueError, IndexError, TypeError) as e:
+                print(f"Error processing color result: {e}")
+                continue
 
     combined_results = combine_pattern_color(similarities, images, top_k=top_k)
 
@@ -401,7 +440,7 @@ def search_image_id(request):
         try:
             query_features = extract_features(temp_file_path)
 
-            images = ImageFeature.objects.all()
+            images = list(ImageFeature.objects.all())
             database_features = [{"pattern": img.pattern_features, "color": img.color_features} for img in images]
 
             if not database_features:
@@ -409,23 +448,41 @@ def search_image_id(request):
 
             similarities = find_similar_images(query_features, database_features, top_k=5)
 
-            pattern_results = [
-                {
-                    "company_id": images[int(idx)].company_id,
-                    "score": similarities["pattern"]["scores"][i],
-                    "image_ref_id": images[int(idx)].image_ref_id,
-                }
-                for i, idx in enumerate(similarities["pattern"]["indices"])
-            ]
+            # Safely extract pattern results
+            pattern_results = []
+            if "indices" in similarities["pattern"] and "scores" in similarities["pattern"]:
+                pattern_indices = similarities["pattern"]["indices"]
+                pattern_scores = similarities["pattern"]["scores"]
+                for i, idx in enumerate(pattern_indices):
+                    try:
+                        idx_int = int(idx)
+                        if 0 <= idx_int < len(images) and i < len(pattern_scores):
+                            pattern_results.append({
+                                "company_id": images[idx_int].company_id,
+                                "score": float(pattern_scores[i]),
+                                "image_ref_id": images[idx_int].image_ref_id,
+                            })
+                    except (ValueError, IndexError, TypeError) as e:
+                        print(f"Error processing pattern result: {e}")
+                        continue
 
-            color_results = [
-                {
-                    "company_id": images[int(idx)].company_id,
-                    "score": similarities["color"]["scores"][i],
-                    "image_ref_id": images[int(idx)].image_ref_id,
-                }
-                for i, idx in enumerate(similarities["color"]["indices"])
-            ]
+            # Safely extract color results
+            color_results = []
+            if "indices" in similarities["color"] and "scores" in similarities["color"]:
+                color_indices = similarities["color"]["indices"]
+                color_scores = similarities["color"]["scores"]
+                for i, idx in enumerate(color_indices):
+                    try:
+                        idx_int = int(idx)
+                        if 0 <= idx_int < len(images) and i < len(color_scores):
+                            color_results.append({
+                                "company_id": images[idx_int].company_id,
+                                "score": float(color_scores[i]),
+                                "image_ref_id": images[idx_int].image_ref_id,
+                            })
+                    except (ValueError, IndexError, TypeError) as e:
+                        print(f"Error processing color result: {e}")
+                        continue
 
             return render(request, "cbir_app/search_results_id.html", {
                 "message": "Search completed",
@@ -696,21 +753,47 @@ def search_image_combined(request):
         t4 = time.time()
         print(f"[Combined Search] Similarity search time: {t4 - t3:.3f} seconds")
 
-        # Combine pattern and color scores (average)
-        pattern_dict = {int(idx): float(similarities["pattern"]["scores"][i]) for i, idx in enumerate(similarities["pattern"]["indices"])}
-        color_dict = {int(idx): float(similarities["color"]["scores"][i]) for i, idx in enumerate(similarities["color"]["indices"])}
+        # Safely combine pattern and color scores (average)
+        pattern_dict = {}
+        if "indices" in similarities["pattern"] and "scores" in similarities["pattern"]:
+            pattern_indices = similarities["pattern"]["indices"]
+            pattern_scores = similarities["pattern"]["scores"]
+            for i, idx in enumerate(pattern_indices):
+                try:
+                    idx_int = int(idx)
+                    if 0 <= idx_int < len(images) and i < len(pattern_scores):
+                        pattern_dict[idx_int] = float(pattern_scores[i])
+                except (ValueError, IndexError, TypeError):
+                    continue
+        
+        color_dict = {}
+        if "indices" in similarities["color"] and "scores" in similarities["color"]:
+            color_indices = similarities["color"]["indices"]
+            color_scores = similarities["color"]["scores"]
+            for i, idx in enumerate(color_indices):
+                try:
+                    idx_int = int(idx)
+                    if 0 <= idx_int < len(images) and i < len(color_scores):
+                        color_dict[idx_int] = float(color_scores[i])
+                except (ValueError, IndexError, TypeError):
+                    continue
+        
         combined = []
         all_indices = set(pattern_dict.keys()) | set(color_dict.keys())
         for idx in all_indices:
-            pattern_score = pattern_dict.get(idx, 0)
-            color_score = color_dict.get(idx, 0)
-            combined_score = (pattern_score + color_score) / 2
-            img = images[int(idx)]
-            combined.append({
-                "image": img.image.url,
-                "company_id": img.company_id,
-                "combined_score": combined_score
-            })
+            try:
+                pattern_score = pattern_dict.get(idx, 0)
+                color_score = color_dict.get(idx, 0)
+                combined_score = (pattern_score + color_score) / 2
+                img = images[int(idx)]
+                combined.append({
+                    "image": img.image.url,
+                    "company_id": img.company_id,
+                    "combined_score": combined_score
+                })
+            except (ValueError, IndexError, TypeError) as e:
+                print(f"Error processing combined result for index {idx}: {e}")
+                continue
         combined = sorted(combined, key=lambda x: x["combined_score"], reverse=True)[:10]
 
         total_time = time.time() - start_time

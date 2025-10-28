@@ -11,10 +11,27 @@ import time
 
 # Lazy-load ResNet50 model to avoid blocking startup
 import tensorflow as tf
-# Configure TensorFlow for better performance
-tf.config.optimizer.set_jit(True)  # Enable XLA compilation
-tf.config.threading.set_intra_op_parallelism_threads(0)  # Use all available cores
-tf.config.threading.set_inter_op_parallelism_threads(0)
+import os
+
+# Configure TensorFlow for better memory efficiency
+os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+os.environ['TF_XLA_FLAGS'] = '--tf_xla_enable_lazy_compilation=false'
+
+# Disable XLA to reduce memory usage
+tf.config.optimizer.set_jit(False)
+
+# Limit GPU memory growth to prevent OOM
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+
+# Configure threading for stability
+tf.config.threading.set_intra_op_parallelism_threads(2)  # Limit threads to reduce memory
+tf.config.threading.set_inter_op_parallelism_threads(2)
 
 # Global variable to cache the model
 _pattern_model = None
