@@ -172,3 +172,12 @@ cython_debug/
 #.idea/
 
 # End of https://www.toptal.com/developers/gitignore/api/django"krn/" 
+
+__pycache__/
+*.pyc
+*.log
+.env
+*.sqlite3
+inv_venv/
+mysql_data_prod/
+
